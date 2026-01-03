@@ -71,7 +71,7 @@ export default function ManageProfileModal({ userData, onClose, onPasswordUpdate
        * - currentPassword: to verify the user knows their current password
        * - newPassword: the desired new password
        */
-      const response = await fetch('http://firehawk-project-production.up.railway.app', {
+      const response = await fetch('https://firehawk-project-production.up.railway.app', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json', // sending JSON body

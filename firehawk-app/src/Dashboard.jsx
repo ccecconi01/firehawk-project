@@ -11,7 +11,7 @@ import { useNavigate } from 'react-router-dom';
 
 // React-Leaflet components for the map UI
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
+import L from 'leaflet'; import 'leaflet/dist/leaflet.css'; import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'; import markerIcon from 'leaflet/dist/images/marker-icon.png'; import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
 // Local components + styling
 import ProfileModal from './ProfileModal';
@@ -37,13 +37,18 @@ export default function Dashboard({ userData, onLogout }) {
   // Loading state for the initial fetch
   const [loading, setLoading] = useState(true);
 
+  // Fix Leaflet's missing icon issue by setting default icon paths
+  delete L.Icon.Default.prototype._getIconUrl;
+  L.Icon.Default.mergeOptions({ iconRetinaUrl: markerIcon2x, iconUrl: markerIcon, shadowUrl: markerShadow, });
+
+
   /**
    * Fetch the local JSON file once when the component mounts.
    * Steps:
    * 1) fetch /data/fires.json
    * 2) transform raw data into UI-friendly objects
    * 3) sort by "lastlyUpdated" (newest first)
-   * 4) keep the latest 30
+   * 4) keep the latest 20
    */
   useEffect(() => {
     fetch('/data/fires.json')
@@ -88,7 +93,7 @@ export default function Dashboard({ userData, onLogout }) {
         );
 
         // Keep the latest 30 rows for the table + map markers
-        const latest20 = sorted.slice(0, 30);
+        const latest20 = sorted.slice(0, 20);
 
         // Update UI state
         setTableData(latest20);

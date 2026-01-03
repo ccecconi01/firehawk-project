@@ -1,0 +1,21 @@
+id,data,hora,status,local,lat,lon,temp,humidade,vento,fwi,Prev_Homens,Prev_Terrestres,Prev_Aereos,Real_Homens,Real_Terrestres,Real_Aereos
+20251763591,31-12-2025,16:27,Despacho,"Vila Real, Montalegre, Viade De Baixo E Fervidelas",41.75142,-7.89564,6.0,77.0,6.3,7.9,5,1,0,0,0,0
+20251763337,31-12-2025,15:29,Conclusão,"Castelo Branco, Belmonte, Maçainhas",40.41211,-7.288847,8.3,64.0,8.4,10.5,5,2,0,4,2,0
+20251763197,31-12-2025,14:44,Conclusão,"Aveiro, Santa Maria da Feira, Argoncilhe",41.019658,-8.540026,12.0,63.0,5.4,10.6,4,1,0,4,1,0
+20251758661,30-12-2025,16:03,Despacho de 1º Alerta,"Vila Real, Montalegre, Chã",41.78103,-7.756357,4.7,81.0,4.7,6.9,5,1,0,4,1,0
+20251758468,30-12-2025,15:28,Conclusão,"Porto, Vila Nova de Gaia, Perosinho",41.048567,-8.568433,12.4,76.0,0.6,6.7,4,1,0,0,0,0
+20251758437,30-12-2025,15:18,Conclusão,"Coimbra, Coimbra, Brasfemes",40.27639,-8.38778,12.2,69.0,3.6,8.4,4,2,0,0,0,0
+20251756169,30-12-2025,08:54,Conclusão,"Beja, Beja, Beja (salvador E Santa Maria Da Feira)",38.018587,-7.857487,10.3,88.0,6.7,6.5,4,2,0,0,0,0
+20251755899,30-12-2025,07:30,Conclusão,"Porto, Vila Nova de Gaia, Pedroso",41.06333,-8.55785,12.4,72.0,1.2,7.3,4,1,0,3,1,0
+20251753960,29-12-2025,17:40,Conclusão,"Castelo Branco, Castelo Branco, Malpica Do Tejo",39.707023,-7.396915,11.9,71.0,9.9,10.4,5,2,0,0,0,0
+20251753840,29-12-2025,17:20,Despacho de 1º Alerta,"Porto, Santo Tirso, Agrela",41.25803,-8.456943,11.3,71.0,5.6,8.7,4,1,0,3,1,0
+20251752336,29-12-2025,12:54,Despacho de 1º Alerta,"Vila Real, Vila Real, Lordelo",41.318354,-7.765287,6.2,83.0,3.6,6.4,4,2,0,4,2,0
+20251750897,29-12-2025,09:01,Despacho de 1º Alerta,"Vila Real, Peso da Régua, Poiares",41.17855,-7.72642,5.1,79.0,3.2,6.8,4,2,0,3,1,0
+20251749294,28-12-2025,20:35,Despacho,"Lisboa, Loures, Santo António Dos Cavaleiros E Frielas",38.81179,-9.16273,10.4,82.0,5.0,7.0,5,2,0,0,0,0
+20251748760,28-12-2025,18:16,Conclusão,"Viana Do Castelo, Arcos de Valdevez, São Jorge E Ermelo",41.833472,-8.329237,12.6,59.0,6.3,11.0,4,1,0,3,1,0
+20251748699,28-12-2025,18:05,Conclusão,"Braga, Vieira do Minho, Ruivães E Campos",41.6824,-8.01355,8.0,70.0,18.6,14.4,5,1,0,0,0,0
+20251748183,28-12-2025,16:05,Em Resolução,"Bragança, Alfândega da Fé, Parada E Sendim Da Ribeira",41.261253,-6.891653,11.3,68.0,9.4,10.6,5,3,0,4,2,0
+20251748015,28-12-2025,15:30,Conclusão,"Viana Do Castelo, Arcos de Valdevez, Gondoriz",41.909175,-8.36956,12.7,58.0,4.2,10.1,4,1,0,0,0,0
+20251747929,28-12-2025,15:15,Despacho,"Vila Real, Montalegre, Outeiro",41.77997,-7.93977,6.6,74.0,6.2,8.3,5,1,0,0,0,0
+20251746634,28-12-2025,11:16,Conclusão,"Viana Do Castelo, Arcos de Valdevez, Soajo",41.874332,-8.320288,9.2,65.0,8.0,10.3,4,1,0,0,0,0
+20251745217,28-12-2025,00:47,Conclusão,"Viseu, Castro Daire, Cabril",40.95238,-8.105655,10.5,68.0,7.8,9.9,5,2,0,0,0,0

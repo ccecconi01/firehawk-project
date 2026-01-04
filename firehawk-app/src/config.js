@@ -8,7 +8,7 @@ const config = {
   // On Railway, put your Auth project URL here
   AUTH_API: isLocal 
     ? "http://localhost:5000" : 
-    "https://firehawk-project-production.up.railway.app", 
+    "https://firehawk-backend-production.up.railway.app", 
 
   // PYTHON PIPELINE URL (Data, Weather, AI)
   DATA_API: isLocal 

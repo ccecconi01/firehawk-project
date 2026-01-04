@@ -8,10 +8,31 @@ import math
 import sys
 import os
 
-# --- CONFIGURATION ---
-MODEL_FILE = 'model_resources_lite.pkl'
-FEATURES_FILE = 'model_features_list.pkl'
-OUTPUT_FILE = 'dashboard_predictions.csv'
+# ==========================================
+# PATH CONFIGURATION AND IMPORTS
+# ==========================================
+
+# 1. Get the directory where THIS script is saved
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 2. Add to path to import local modules (csv_to_json)
+sys.path.append(SCRIPT_DIR)
+
+# Try to import the converter (if it exists in the folder)
+try:
+    import csv_to_json as c2j
+except ImportError:
+    print("WARNING: 'csv_to_json.py' not found. JSON conversion will be skipped.")
+    c2j = None
+
+# --- FILE SETTINGS ---
+MODEL_FILE = os.path.join(SCRIPT_DIR, 'model_resources_lite.pkl')
+FEATURES_FILE = os.path.join(SCRIPT_DIR, 'model_features_list.pkl')
+OUTPUT_FILE = os.path.join(SCRIPT_DIR, 'dashboard_predictions.csv')
+
+# JSON path for the frontend (go up one level '..', into firehawk-app/public/data)
+JSON_OUTPUT_FILE = os.path.normpath(os.path.join(SCRIPT_DIR, '..', 'firehawk-app', 'public', 'data', 'fires.json'))
+
 TOP_N_RECENT = 20
 
 # ==========================================
@@ -122,14 +143,15 @@ def calculate_fwi_codes(temp, rh, wind_kph, rain_mm, month):
 # ==========================================
 
 def get_historical_weather(lat, lon, date_obj):
-    """Fetches past weather from Open-Meteo Archive (for the specific fire date)."""
+    """Fetches past weather + PRESSURE + WIND DIRECTION."""
     date_str = date_obj.strftime('%Y-%m-%d')
     url = "https://archive-api.open-meteo.com/v1/archive"
     
     params = {
         "latitude": lat, "longitude": lon,
         "start_date": date_str, "end_date": date_str,
-        "hourly": "temperature_2m,relative_humidity_2m,wind_speed_10m,rain",
+        # ADDED: wind_direction_10m, pressure_msl
+        "hourly": "temperature_2m,relative_humidity_2m,wind_speed_10m,rain,wind_direction_10m,pressure_msl",
         "timezone": "auto"
     }
     
@@ -140,25 +162,28 @@ def get_historical_weather(lat, lon, date_obj):
         
         idx = 12 
         
-        temp = data['hourly']['temperature_2m'][idx]
-        hum = data['hourly']['relative_humidity_2m'][idx]
-        wind = data['hourly']['wind_speed_10m'][idx]
-        rain_sum = sum(data['hourly']['rain'][:13])
+        # Get rain from the first 24h to accumulate (better representation of recent dryness/moisture)
+        rain_sum = sum(data['hourly']['rain'][:24]) if 'rain' in data['hourly'] else 0.0
 
         return {
-            'TEMPERATURA': float(temp), 'HUMIDADERELATIVA': float(hum),
-            'VENTOINTENSIDADE': float(wind), 'CHUVA_24H': float(rain_sum),
+            'TEMPERATURA': float(data['hourly']['temperature_2m'][idx]),
+            'HUMIDADERELATIVA': float(data['hourly']['relative_humidity_2m'][idx]),
+            'VENTOINTENSIDADE': float(data['hourly']['wind_speed_10m'][idx]),
+            'CHUVA_24H': float(rain_sum),
+            'DIRECAO_VENTO': float(data['hourly']['wind_direction_10m'][idx]), 
+            'PRESSAO': float(data['hourly']['pressure_msl'][idx]),             
             'SUCCESS': True
         }
     except Exception as e:
         return {'SUCCESS': False}
 
 def get_real_time_weather(lat, lon):
-    """Fetches current weather from Open-Meteo Forecast."""
+    """Fetches current weather + PRESSURE + WIND DIRECTION."""
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
         "latitude": lat, "longitude": lon,
-        "current": "temperature_2m,relative_humidity_2m,wind_speed_10m,rain"
+        # ADDED: wind_direction_10m, pressure_msl
+        "current": "temperature_2m,relative_humidity_2m,wind_speed_10m,rain,wind_direction_10m,pressure_msl"
     }
     try:
         r = requests.get(url, params=params, timeout=5)
@@ -169,6 +194,8 @@ def get_real_time_weather(lat, lon):
             'HUMIDADERELATIVA': float(data['relative_humidity_2m']),
             'VENTOINTENSIDADE': float(data['wind_speed_10m']),
             'CHUVA_24H': float(data['rain']),
+            'DIRECAO_VENTO': float(data['wind_direction_10m']), 
+            'PRESSAO': float(data['pressure_msl']),             
             'SUCCESS': True
         }
     except Exception as e:
@@ -181,6 +208,49 @@ def get_elevation(lat, lon):
         return r.get('elevation', [200])[0]
     except:
         return 200.0
+
+def estimate_slope(lat, lon, distance_m=100):
+    """
+    Custom slope approximation using 4-cardinal-point elevation sampling.
+    
+    Note: This is a simplified estimation method adapted from the rook's case
+    neighbor analysis in DEM processing (Burrough & McDonnell, 1998). For 
+    production systems, use proper DEM-derived slope data from established
+    geospatial databases.
+    
+    Method: Samples elevation at N/S/E/W points, calculates individual slopes,
+    and averages them. This approximation is suitable for relative comparisons
+    but not for precise terrain analysis.
+    
+    Reference (for concept, not exact implementation):
+    Burrough, P.A., & McDonnell, R.A. (1998). Principles of Geographical 
+    Information Systems. Oxford University Press. Chapter 8: Spatial Analysis.
+    
+    distance_m: sampling distance in meters (default 100m)
+    Returns: average slope in degrees (approximation)
+    """
+    try:
+        # Approximate degree offset for distance_m (rough: 1 degree ≈ 111km)
+        offset = distance_m / 111000.0
+        
+        # Get elevation at center and 4 cardinal points
+        center_elev = get_elevation(lat, lon)
+        north_elev = get_elevation(lat + offset, lon)
+        south_elev = get_elevation(lat - offset, lon)
+        east_elev = get_elevation(lat, lon + offset)
+        west_elev = get_elevation(lat, lon - offset)
+        
+        # Calculate slopes in each direction (rise/run in degrees)
+        slopes = []
+        for neighbor_elev in [north_elev, south_elev, east_elev, west_elev]:
+            rise = abs(neighbor_elev - center_elev)
+            slope_deg = math.degrees(math.atan(rise / distance_m))
+            slopes.append(slope_deg)
+        
+        # Return average slope
+        return round(sum(slopes) / len(slopes), 1)
+    except:
+        return 0.0
 
 # ==========================================
 # 3. HELPER: FETCH RECENT HISTORY (V2 API)
@@ -198,7 +268,7 @@ def fetch_recent_history_v2(days_back):
     params = {
         "after": start_date.strftime("%Y-%m-%d"),
         "before": end_date.strftime("%Y-%m-%d"),
-        "limit": 500 # Get a large batch
+        "limit": 500
     }
     
     try:
@@ -218,6 +288,8 @@ def fetch_recent_history_v2(days_back):
 
 def run_pipeline():
     print("--- STARTING PIPELINE (HYBRID & ADAPTIVE) ---")
+    print(f"-> BASE DIRECTORY: {SCRIPT_DIR}")
+    print(f"-> OUTPUT JSON AT: {JSON_OUTPUT_FILE}")
 
     # A. Load Model
     try:
@@ -225,15 +297,14 @@ def run_pipeline():
         model_features = joblib.load(FEATURES_FILE)
         print("-> Model 'Lite' loaded successfully.")
     except FileNotFoundError:
-        print(f"CRITICAL: Run 'train_lite_model.py' first.")
+        print(f"CRITICAL: Model file not found at {MODEL_FILE}")
         sys.exit(1)
 
     # B. Build Fire List (Adaptive Expansion)
-    # ----------------------------------------------------------------
     collected_fires = []
     seen_ids = set() 
     
-    # 1. First, check Active Fires (new/fires)
+    # 1. Active Fires
     print("-> 1. Checking Active Fires (new/fires)...")
     try:
         resp = requests.get("https://api.fogos.pt/new/fires", timeout=10)
@@ -249,9 +320,9 @@ def run_pipeline():
     except Exception as e:
         print(f"   Error checking active fires: {e}")
 
-    # 2. Adaptive Backfill (Loop until we have TOP_N_RECENT)
-    days_window = 3 # Start checking last 3 days
-    max_days = 90   # Max limit to stop infinite loop
+    # 2. Adaptive Backfill
+    days_window = 3 
+    max_days = 90
     
     while len(collected_fires) < TOP_N_RECENT and days_window <= max_days:
         needed = TOP_N_RECENT - len(collected_fires)
@@ -278,7 +349,6 @@ def run_pipeline():
         days_window += 7
 
     # C. Date Parsing & Sorting
-    # -------------------------------
     valid_fires = []
     for f in collected_fires:
         time_str = f.get('hour') or f.get('time') or "00:00"
@@ -305,10 +375,9 @@ def run_pipeline():
     processed_rows = []
 
     # D. Enrichment Loop
-    # -------------------------
     for i, fire in enumerate(target_fires):
         status = fire.get('status', 'Unknown')
-        print(f"   [{i+1}/{len(target_fires)}] Date: {fire.get('date')} {fire.get('time') or fire.get('hour')} | Loc: {fire.get('location', fire.get('concelho'))}")
+        print(f"   [{i+1}/{len(target_fires)}] Processing ID: {fire['id']}")
         
         try:
             lat = float(fire['lat'])
@@ -329,19 +398,24 @@ def run_pipeline():
         rh = w_data.get('HUMIDADERELATIVA', 50.0)
         wind = w_data.get('VENTOINTENSIDADE', 10.0)
         rain = w_data.get('CHUVA_24H', 0.0)
+        # NEW VARIABLES
+        wind_dir = w_data.get('DIRECAO_VENTO', 0.0)
+        pressure = w_data.get('PRESSAO', 1013.0)
 
+        # Calculate FWI codes
         fwi_idx = calculate_fwi_codes(temp, rh, wind, rain, fire['_dt_obj'].month)
-        
-        altitude = get_elevation(lat, lon)
-        es = 0.6108 * np.exp((17.27 * temp) / (temp + 237.3))
-        ea = es * (rh / 100.0)
-        vpd = es - ea
-        
-        declive = 12.0
-        fm = (fwi_idx['FFMC'] / 28.5) ** (1 / 0.281)
-        natureza = fire.get('natureza', 'Mato')
-        if natureza: natureza = natureza.strip().title()
 
+        # Calculate Fuel Moisture (FM) from FFMC per provided formula
+        fm = (fwi_idx['FFMC'] / 28.5) ** (1 / 0.281)
+        
+        # Calculate VPD (Vapor Pressure Deficit) in kPa
+        vpd = (0.6108 * math.exp((17.27 * temp) / (temp + 237.7))) * ((100.0 - rh) / 100.0)
+        
+        # Get elevation and estimate slope (default values if not available)
+        altitude = get_elevation(lat, lon)
+        declive = estimate_slope(lat, lon, distance_m=100)  # Estimate slope using elevation sampling #TODO: Replace with proper DEM-derived slope data from authoritative source
+
+        # Model input assembly
         row_model = {
             'LAT': lat, 'LON': lon,
             'Mes': fire['_dt_obj'].month,
@@ -362,6 +436,9 @@ def run_pipeline():
             'FM_Slope_Interaction': fm * declive
         }
 
+        # Extract nature category
+        natureza = fire.get('natureza', 'Desconhecido')
+        
         df_single = pd.DataFrame([row_model])
         for feature in model_features:
             if feature.startswith('Natureza_'):
@@ -373,6 +450,7 @@ def run_pipeline():
             X_pred[col] = df_single[col] if col in df_single.columns else 0.0
         X_pred = X_pred[model_features]
 
+        # Prediction
         preds = model.predict(X_pred)
         preds = np.maximum(preds, 0).round(0).astype(int)
 
@@ -387,21 +465,38 @@ def run_pipeline():
             'status': status,
             'local': fire.get('location', fire.get('concelho', '')),
             'lat': lat, 'lon': lon,
+            
+            # Complete Weather Data
             'temp': round(temp, 1),
             'humidade': round(rh, 0),
             'vento': round(wind, 1),
+            'chuva_24h': round(rain, 1),         # NEW
+            'direcao_vento': round(wind_dir, 0), # NEW
+            'pressao': round(pressure, 1),       # NEW
+            
             'fwi': fwi_idx['FWI'],
-            'Prev_Homens': preds[0][0],
-            'Prev_Terrestres': preds[0][1],
-            'Prev_Aereos': preds[0][2],
-            'Real_Homens': real_man,
-            'Real_Terrestres': real_terrain,
-            'Real_Aereos': real_aerial
+            'isi': fwi_idx['ISI'],
+            
+            # Predictions
+            'Prev_Homens': int(preds[0][0]),
+            'Prev_Terrestres': int(preds[0][1]),
+            'Prev_Aereos': int(preds[0][2]),
+            
+            # Actuals
+            'Real_Homens': int(real_man),
+            'Real_Terrestres': int(real_terrain),
+            'Real_Aereos': int(real_aerial),
+            
+            # Extras
+            'natureza': natureza,
+            'altitude': altitude
         }
         processed_rows.append(final_row)
 
     if processed_rows:
         df_out = pd.DataFrame(processed_rows)
+        
+        # Sorting
         df_out['temp_sort_dt'] = pd.to_datetime(
             df_out['data'] + ' ' + df_out['hora'], 
             format='%d-%m-%Y %H:%M', 
@@ -410,10 +505,23 @@ def run_pipeline():
         df_out = df_out.sort_values(by='temp_sort_dt', ascending=False)
         df_out = df_out.drop(columns=['temp_sort_dt'])
         
+        # 1. Save CSV locally
         df_out.to_csv(OUTPUT_FILE, index=False)
-        print(f"-> SUCCESS: {len(df_out)} incidents saved to '{OUTPUT_FILE}'.")
-        print("-> Data Sample (Sorted):")
-        print(df_out[['data', 'hora', 'local', 'Prev_Homens']].head())
+        print(f"-> SUCCESS: CSV saved to '{OUTPUT_FILE}'.")
+        
+        # 2. Convert to JSON (Frontend)
+        if c2j:
+            print("-> Calling CSV to JSON converter...")
+            os.makedirs(os.path.dirname(JSON_OUTPUT_FILE), exist_ok=True)
+            c2j.csv_to_json(
+                csv_file=OUTPUT_FILE, 
+                output_file=JSON_OUTPUT_FILE, 
+                pretty=True, 
+                id_columns=['id']
+            )
+        else:
+            print("-> Skipped JSON conversion (Module missing).")
+            
     else:
         print("-> No data processed.")
 

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+import config from './config';
 
 export default function Login({ onLogin }) {
   const [userType, setUserType] = useState('operator');
@@ -23,7 +24,7 @@ export default function Login({ onLogin }) {
         return;
       }
 
-      const response = await fetch('https://firehawk-project-production.up.railway.app/api/login', {
+      const response = await fetch('${config.AUTH_API}/api/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

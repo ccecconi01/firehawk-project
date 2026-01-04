@@ -4,12 +4,17 @@ export function transformFireData(jsonData) {
     return [];
   }
 
+  // 1
   return jsonData.map((fire, index) => {
-    // Use Data_Atualizacao as the "last updated" / reference date
+    // --- ADAPTATION 1: DATE ---
+    // The new pipeline sends 'data' and 'hora'. The old one sent 'Data_Atualizacao'.
     let formattedDate = 'N/A';
-    if (fire.Data_Atualizacao) {
-      // "2022-08-25 11:21:46" → valid Date string
-      // The date format in the merged JSON is 'YYYY-MM-DD HH:MM:SS'
+
+    if (fire.data && fire.hora) {
+      // The new format coming from Python
+      formattedDate = `${fire.data}, ${fire.hora}`;
+    } else if (fire.Data_Atualizacao) {
+      // Keep your original fallback logic
       const updateDate = new Date(fire.Data_Atualizacao.replace(' ', 'T'));
       if (!isNaN(updateDate.getTime())) {
         formattedDate = updateDate.toLocaleString('pt-PT', {
@@ -22,73 +27,99 @@ export function transformFireData(jsonData) {
       }
     }
 
-    // Resources 
-    const man = Number(fire.Operacionais_Man) ||"N/A";
-    const terrain = Number(fire.Meios_Terrestres) || "N/A";
-    const units = man > 0 ? man : 'N/A';
+    // --- ADAPTATION 2: RESOURCES ---
+    // Map the new fields (Real_...) or use the old ones (Operacionais_...) as fallback
+    const man = Number(fire.Real_Homens) || Number(fire.Operacionais_Man) || 0;
+    const terrain = Number(fire.Real_Terrestres) || Number(fire.Meios_Terrestres) || 0;
+    const aerial = Number(fire.Real_Aereos) || Number(fire.Real_Meios_Aereos) || Number(fire.Meios_Aereos) || 0;
 
-    // Simple mapping from Estado to a numeric "level"
-    // The original code used Estado_Descricao, which is now just Estado in the merged data.
+    // Adjustment to display the full string on the Dashboard (H | T | A) now that we have these data
+    const units = `${man} H | ${terrain} T | ${aerial} A`;
+
+    // --- ADAPTATION 3: STATUS / LEVEL ---
+    // Map 'status' (new) or 'Estado' (old)
+    const currentStatus = fire.status || fire.Estado;
     let level = 0;
-    switch (fire.Estado) {
+    
+    // Keeping your switch case, adding only fallback for common Python statuses
+    switch (currentStatus) {
       case 'Despacho de 1º Alerta':
+      case 'Despacho': 
         level = 1;
         break;
       case 'Em Resolução':
+      case 'Em Curso': 
+      case 'Ativo':  
+      case 'Chegada ao TO':  
         level = 2;
         break;
       case 'Vigilância':
-        level = 2;
+        level = 3;
         break;
       case 'Conclusão':
-        level = 3;
+        level = 4;
         break;
       default:
         level = 0;
     }
 
-    // Human-readable location
-    const location =
-      fire.Distrito && fire.Concelho
+    // --- ADAPTATION 4: LOCATION ---
+    // The pipeline sends 'local'. If absent, use your old logic.
+    const location = fire.local || 
+      (fire.Distrito && fire.Concelho
         ? `${fire.Distrito} - ${fire.Concelho}`
-        : fire.Distrito || fire.Concelho || fire.Localizacao || 'Unknown';
+        : fire.Distrito || fire.Concelho || fire.Localizacao || 'Unknown');
 
-    // Enrich original data so AlertDetails can still use .lat/.lng/.man/.terrain
+    // --- ADAPTATION 5: ENRICHED DATA (For AlertDetails) ---
     const enrichedOriginal = {
       ...fire,
-      // unified names the components expect
-      lat: fire.Latitude,
-      lng: fire.Longitude,
+      // Coordinate unification
+      lat: parseFloat(fire.lat || fire.Latitude),
+      lng: parseFloat(fire.lon || fire.lng || fire.Longitude),
+      
+      // Actual resources
       man,
       terrain,
-      heliFight: Number(fire.Real_Meios_Aereos) || Number(fire.Meios_Aereos) || 0,
-      natureza: fire.Natureza, // Changed from Natureza_Descricao to Natureza
-      regiao: fire.Distrito,
+      heliFight: aerial,
+
+      // Metadata
+      natureza: fire.natureza || fire.Natureza,
+      regiao: fire.local || fire.Distrito,
       sub_regiao: fire.Concelho,
-      icnf: {
-        altitude: fire.ALTITUDEMEDIA, // Added ALTITUDEMEDIA
-        fontealerta: fire.NCCO, // Using NCCO as a source identifier
-        fogacho: fire.FFMC, // Using FFMC as a fire weather index component
-      },
-      // Adding the RF prediction fields for AlertDetails to use
-      Previsto_Operacionais_Man: fire.Previsto_Operacionais_Man,
-      Erro_Operacionais_Man: fire.Erro_Operacionais_Man,
-      Previsto_Meios_Terrestres: fire.Previsto_Meios_Terrestres,
-      Erro_Meios_Terrestres: fire.Erro_Meios_Terrestres,
-      Previsto_Meios_Aereos: fire.Previsto_Meios_Aereos,
-      Erro_Meios_Aereos: fire.Erro_Meios_Aereos,
+
+      // NEW WEATHER DATA (Requested for AlertDetails)
+      pressao: fire.pressao,             // From Python
+      direcao_vento: fire.direcao_vento, // From Python
+      chuva_24h: fire.chuva_24h,         // From Python
+
+      
+      altitude: fire.altitude || fire.ALTITUDEMEDIA,
+      fontealerta: fire.id || fire.NCCO, 
+      fwi: fire.fwi || fire.FWI, 
+      isi: fire.isi || fire.ISI,
+      
+      
+      // FORECASTS (New pipeline fields for the comparison chart)
+      Previsto_Operacionais_Man: fire.Prev_Homens,
+      Previsto_Meios_Terrestres: fire.Prev_Terrestres,
+      Previsto_Meios_Aereos: fire.Prev_Aereos,
+      
+      // ACTUALS (Explicit for comparison)
+      Real_Operacionais_Man: fire.Real_Homens,
+      Real_Meios_Terrestres: fire.Real_Terrestres,
+      Real_Meios_Aereos: fire.Real_Aereos
     };
 
     return {
-      // internal incremental ID for the table / routing
+      // internal incremental ID
       id: index + 1,
-      // original incident ID so you can always refer back  
-      originalId: fire.ID_Incidente, // ID_Incidente is the common key
+      // original incident ID
+      originalId: String(fire.id || fire.ID_Incidente),
       lastlyUpdated: formattedDate,
       location,
       units,
       level,
-      status: fire.Estado || 'Unknown', // Changed from Estado_Descricao to Estado
+      status: currentStatus || 'Unknown',
       originalData: enrichedOriginal,
     };
   });

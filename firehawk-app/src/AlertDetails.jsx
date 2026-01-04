@@ -83,44 +83,37 @@ export default function AlertDetails({ userData, onLogout }) {
 
   // Extract fire information + weather directly from fires.json
   const fireInfo = {
-    altitude: alertData.originalData?.ALTITUDEMEDIA
-      ? `${alertData.originalData.ALTITUDEMEDIA.toFixed(2)} m`
-      : 'N/A',
+    altitude: alertData.originalData?.icnf?.altitude 
+      ? `${Number(alertData.originalData.icnf.altitude).toFixed(2)} m` 
+      : (alertData.originalData?.ALTITUDEMEDIA ? `${Number(alertData.originalData.ALTITUDEMEDIA).toFixed(2)} m` : 'N/A'),
 
-    fireType: alertData.originalData?.Natureza || 'N/A',
+    fireType: alertData.originalData?.natureza || 'N/A',
+    region: alertData.location || 'N/A',
+    
+    // WEATHER
+    temperature: alertData.originalData?.temp != null 
+      ? `${Number(alertData.originalData.temp).toFixed(1)} °C` : 'N/A',
 
-    region: alertData.originalData?.Distrito || 'N/A',
+    relativeHumidity: alertData.originalData?.humidade != null 
+      ? `${Number(alertData.originalData.humidade).toFixed(1)}%` : 'N/A',
 
-    subRegion: alertData.originalData?.Concelho || 'N/A',
+    windSpeed: alertData.originalData?.vento != null 
+      ? `${Number(alertData.originalData.vento).toFixed(1)} km/h` : 'N/A',
 
-    alertSource: alertData.originalData?.NCCO || 'N/A',
-    fogacho: alertData.originalData?.FFMC ? 'Yes' : 'No',
+    pressure: alertData.originalData?.pressao != null 
+      ? `${Number(alertData.originalData.pressao).toFixed(1)} hPa` : 'N/A',
 
-    // WEATHER DIRECTLY FROM fires.json (using merged fields)
-    temperature:
-      alertData.originalData?.TEMPERATURA != null
-        ? `${alertData.originalData.TEMPERATURA.toFixed(1)} °C`
-        : 'N/A',
+    rain: alertData.originalData?.chuva_24h != null 
+      ? `${Number(alertData.originalData.chuva_24h).toFixed(1)} mm` : '0 mm',
 
-    pressure: 'N/A',
-
-    windSpeed:
-      typeof alertData.originalData?.VENTOINTENSIDADE === 'number'
-        ? `${alertData.originalData.VENTOINTENSIDADE.toFixed(2)} KM/h`
-        : 'N/A',
-
-    // Wind direction is not available in the merged data, keeping 'N/A'
-    windDirection: 'N/A',
-
-    relativeHumidity:
-      alertData.originalData?.HUMIDADERELATIVA != null
-        ? `${alertData.originalData.HUMIDADERELATIVA.toFixed(1)}%`
-        : 'N/A',
-
-    precipitation: 'N/A',
-    fwi: alertData.originalData?.FWI != null ? alertData.originalData.FWI.toFixed(2) : 'N/A',
-    isi: alertData.originalData?.ISI != null ? alertData.originalData.ISI.toFixed(2) : 'N/A',
-    vpd: 'N/A',
+    windDirection: alertData.originalData?.direcao_vento != null 
+      ? `${Number(alertData.originalData.direcao_vento).toFixed(0)}°` : 'N/A',
+      
+    fwi: alertData.originalData?.fwi != null ? Number(alertData.originalData.fwi).toFixed(1) : 'N/A',
+    isi: alertData.originalData?.isi != null ? Number(alertData.originalData.isi).toFixed(1) : 'N/A',
+    
+    vpd: alertData.originalData?.VPD_kPa != null 
+      ? `${Number(alertData.originalData.VPD_kPa).toFixed(2)} kPa` : 'N/A',
   };
 
   // Real-time resources (Actual values)
@@ -130,7 +123,7 @@ export default function AlertDetails({ userData, onLogout }) {
     helicopters: alertData.originalData?.Real_Meios_Aereos || alertData.originalData?.Meios_Aereos || 'N/A',
   };
 
-  // Predicted resources (RF Model output)
+  // Predicted resources (ML Model output)
   const predictedResources = {
     firefighters: {
       predicted: alertData.originalData?.Previsto_Operacionais_Man || 'N/A',
@@ -193,8 +186,9 @@ export default function AlertDetails({ userData, onLogout }) {
     doc.setFontSize(11);
     addLine(`Temperature: ${fireInfo.temperature}`);
     addLine(`Pressure: ${fireInfo.pressure}`);
-    addLine(`Wind speed: ${fireInfo.windSpeed}`);
     addLine(`Relative humidity: ${fireInfo.relativeHumidity}`);
+    addLine(`Wind Speed: ${fireInfo.windSpeed} (Dir: ${fireInfo.windDirection})`);
+    addLine(`Rain (24h): ${fireInfo.rain}`); 
     addLine(`FWI: ${fireInfo.fwi}`);
     addLine(`ISI: ${fireInfo.isi}`);
     addLine(`VPD: ${fireInfo.vpd}`);
@@ -213,7 +207,7 @@ export default function AlertDetails({ userData, onLogout }) {
     doc.setFontSize(13);
     addLine(`Predicted Resources`);
     doc.setFontSize(11);
-    addLine(`Firefighters: Predicted=${predictedResources.firefighters.predicted}}`);
+    addLine(`Firefighters: Predicted=${predictedResources.firefighters.predicted}`);
     addLine(`Vehicles: Predicted=${predictedResources.vehicles.predicted}`);
     addLine(`Helicopters: Predicted=${predictedResources.helicopters.predicted}`);
     y += 3;
@@ -266,12 +260,14 @@ export default function AlertDetails({ userData, onLogout }) {
           <div className="weather-info">
             <p>Temperature: {fireInfo.temperature}</p>
             <p>Pressure : {fireInfo.pressure}</p>
+            <p>Rain (24h): {fireInfo.rain}</p>
+            <p>Wind Direction: {fireInfo.windDirection}</p>
             <p>Wind Speed: {fireInfo.windSpeed}</p>
             <p>Relative Humidity: {fireInfo.relativeHumidity}</p>
             <p>FWI: {fireInfo.fwi}</p>
             <p>ISI: {fireInfo.isi}</p>
             <p>VPD: {fireInfo.vpd}</p>
-
+                
             <hr style={{ margin: '10px 0', borderColor: '#ccc' }} />
             <p><strong>Nature:</strong> {fireInfo.fireType}</p>
             <p><strong>Altitude:</strong> {fireInfo.altitude}</p>

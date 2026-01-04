@@ -476,6 +476,7 @@ def run_pipeline():
             
             'fwi': fwi_idx['FWI'],
             'isi': fwi_idx['ISI'],
+            'vpd_kpa': round(vpd, 2),
             
             # Predictions
             'Prev_Homens': int(preds[0][0]),

@@ -90,7 +90,8 @@ export function transformFireData(jsonData) {
       // NEW WEATHER DATA (Requested for AlertDetails)
       pressao: fire.pressao,             // From Python
       direcao_vento: fire.direcao_vento, // From Python
-      chuva_24h: fire.chuva_24h,         // From Python
+      chuva_24h: fire.chuva_24h,  
+      vpd: fire.vpd,       // From Python
 
       
       altitude: fire.altitude || fire.ALTITUDEMEDIA,
@@ -100,9 +101,9 @@ export function transformFireData(jsonData) {
       
       
       // FORECASTS (New pipeline fields for the comparison chart)
-      Previsto_Operacionais_Man: fire.Prev_Homens,
-      Previsto_Meios_Terrestres: fire.Prev_Terrestres,
-      Previsto_Meios_Aereos: fire.Prev_Aereos,
+      Previsto_Operacionais_Man: fire.Prev_Homens || fire.Previsto_Operacionais_Man,
+      Previsto_Meios_Terrestres: fire.Prev_Terrestres || fire.Previsto_Meios_Terrestres,
+      Previsto_Meios_Aereos: fire.Prev_Aereos || fire.Previsto_Meios_Aereos,
       
       // ACTUALS (Explicit for comparison)
       Real_Operacionais_Man: fire.Real_Homens,
@@ -114,7 +115,7 @@ export function transformFireData(jsonData) {
       // internal incremental ID
       id: index + 1,
       // original incident ID
-      originalId: String(fire.id || fire.ID_Incidente),
+      originalId: String(fire.id || fire.ID_Incidente || fire.NCCO),
       lastlyUpdated: formattedDate,
       location,
       units,

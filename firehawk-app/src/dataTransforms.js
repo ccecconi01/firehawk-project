@@ -34,7 +34,7 @@ export function transformFireData(jsonData) {
     const aerial = Number(fire.Real_Aereos) || Number(fire.Real_Meios_Aereos) || Number(fire.Meios_Aereos) || 0;
 
     // Map the new fields (Previsto_...) or use the old ones (Prev_Homens, etc.) as fallback
-    const predictedMan = Number(fire.Previsto_Operacionais) || Number(fire.Prev_Homens) || 0;
+    const predictedMan = Number(fire.Previsto_Operacionais_Man) || Number(fire.Prev_Homens) || 0;
     const predictedTerrain = Number(fire.Previsto_Meios_Terrestres) || Number(fire.Prev_Terrestres) || 0;
     const predictedAerial = Number(fire.Previsto_Meios_Aereos) || Number(fire.Prev_Aereos) || 0;
 

@@ -200,7 +200,7 @@ export default function AlertDetails({ userData, onLogout }) {
     doc.setFontSize(11);
     addLine(`Firefighters: ${realTimeResources.firefighters}`);
     addLine(`Vehicles: ${realTimeResources.vehicles}`);
-    addLine(`Helicopters: ${realTimeResources.helicopters}`);
+    addLine(`Aerial: ${realTimeResources.helicopters}`);
     y += 3;
 
     // Predicted resources (RF Model)
@@ -209,7 +209,7 @@ export default function AlertDetails({ userData, onLogout }) {
     doc.setFontSize(11);
     addLine(`Firefighters: Predicted=${predictedResources.firefighters.predicted}`);
     addLine(`Vehicles: Predicted=${predictedResources.vehicles.predicted}`);
-    addLine(`Helicopters: Predicted=${predictedResources.helicopters.predicted}`);
+    addLine(`Aerial: Predicted=${predictedResources.helicopters.predicted}`);
     y += 3;
 
     // Save file

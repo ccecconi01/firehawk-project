@@ -31,8 +31,16 @@ FEATURES_FILE = os.path.join(SCRIPT_DIR, 'model_features_list.pkl')
 OUTPUT_FILE = os.path.join(SCRIPT_DIR, 'dashboard_predictions.csv')
 
 # JSON path for the frontend (go up one level '..', into firehawk-app/public/data)
-JSON_OUTPUT_FILE = os.path.normpath(os.path.join(SCRIPT_DIR, '..', 'firehawk-app', 'public', 'data', 'fires.json'))
+DIST_PATH = os.path.normpath(os.path.join(SCRIPT_DIR, '..', 'firehawk-app', 'dist', 'data'))
+PUBLIC_PATH = os.path.normpath(os.path.join(SCRIPT_DIR, '..', 'firehawk-app', 'public', 'data'))
 
+if os.path.exists(DIST_PATH):
+    print(f"-> PRODUCTION MODE DETECTED: Saving JSON to 'dist' folder.")
+    JSON_OUTPUT_FILE = os.path.join(DIST_PATH, 'fires.json')
+else:
+    print(f"-> DEVELOPMENT MODE: Saving JSON to 'public' folder.")
+    JSON_OUTPUT_FILE = os.path.join(PUBLIC_PATH, 'fires.json')
+    
 TOP_N_RECENT = 20
 
 # ==========================================

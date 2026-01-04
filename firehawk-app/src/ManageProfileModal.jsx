@@ -72,7 +72,7 @@ export default function ManageProfileModal({ userData, onClose, onPasswordUpdate
        * - currentPassword: to verify the user knows their current password
        * - newPassword: the desired new password
        */
-      const response = await fetch('${config.AUTH_API}/api/update-password', {
+      const response = await fetch(`${config.AUTH_API}/api/update-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json', // sending JSON body

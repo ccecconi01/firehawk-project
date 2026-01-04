@@ -1,5 +1,5 @@
 # 1. Hybrid Image (Python + Node)
-FROM nikolaik/python-nodejs:python3.10-nodejs18
+FROM nikolaik/python-nodejs:python3.10-nodejs22
 
 # 2. Configure working folder
 WORKDIR /app

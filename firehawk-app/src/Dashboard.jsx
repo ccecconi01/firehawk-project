@@ -5,6 +5,9 @@
 // - useEffect: runs side-effects (fetching fires.json on mount)
 import { useState, useEffect } from 'react';
 
+// Config with API URLs
+import config from './config';
+
 // React Router:
 // - useNavigate: programmatic navigation when clicking a row (go to /alert/:id)
 import { useNavigate } from 'react-router-dom';
@@ -36,6 +39,9 @@ export default function Dashboard({ userData, onLogout }) {
 
   // Loading state for the initial fetch
   const [loading, setLoading] = useState(true);
+
+  // Refreshing state for future use (update incidents button)
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Fix Leaflet's missing icon issue by setting default icon paths
   delete L.Icon.Default.prototype._getIconUrl;
@@ -146,6 +152,38 @@ export default function Dashboard({ userData, onLogout }) {
     return hasCoords && isOngoing;
   });
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      
+      const response = await fetch(`${config.DATA_API}/api/refresh-data`, {
+        method: 'POST',
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        // Reload the local fires.json file
+        //Timestamp forces browser to not use cached version
+        fetch(`/data/fires.json?t=${Date.now()}`)
+          .then(res => res.json())
+          .then(data => {
+             const transformed = transformFireData(data);
+             
+             setTableData(transformed.slice(0, 20));
+             alert("Incident data updated!");
+          });
+      } else {
+        alert("Server Error: " + result.error);
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Error connecting to server.");
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
     <div className="dashboard-container">
       {/* Header area: brand + profile button */}
@@ -176,6 +214,25 @@ export default function Dashboard({ userData, onLogout }) {
               loading="eager"
               draggable="false"
             />
+          </button>
+          <button 
+            onClick={handleRefresh} 
+            disabled={isRefreshing}
+            className="refresh-button"
+            style={{
+              padding: '8px 16px',
+              backgroundColor: isRefreshing ? '#ccc' : '#e63946',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: isRefreshing ? 'wait' : 'pointer',
+              fontWeight: 'bold',
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '5px'
+            }}
+          >
+            {isRefreshing ? '🔄 Refreshing...' : '⚡ Update Incidents'}
           </button>
         </div>
       </header>

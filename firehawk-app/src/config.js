@@ -6,9 +6,9 @@ const isLocal = window.location.hostname === "localhost" || window.location.host
 const config = {
   // USER BACKEND URL (Node.js/Express - Login, Register)
   // On Railway, put your Auth project URL here
-  AUTH_API: isLocal 
-    ? "http://localhost:5000" 
-    : "https://firehawk-project-production.up.railway.app", 
+  AUTH_API: //isLocal 
+    //? "http://localhost:5000" : 
+    "https://firehawk-project-production.up.railway.app", 
 
   // PYTHON PIPELINE URL (Data, Weather, AI)
   // Flask defined on port 5000 - adjust if needed

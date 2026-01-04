@@ -78,28 +78,30 @@ export default function AlertDetails({ userData, onLogout }) {
   const handleBackToDashboard = () => navigate('/dashboard');
 
   // Coordinates (with default fallback)
-  const lat = Number(alertData.originalData?.lat ?? 39.5);
-  const lng = Number(alertData.originalData?.lng ?? -8.0);
+  const lat = Number(alertData.originalData?.lat ?? alertData.originalData?.LAT ?? 39.5);
+  const lng = Number(alertData.originalData?.lng ?? alertData.originalData?.LON ?? -8.0);
 
-  // Extract fire information + weather directly from fires.json
   const fireInfo = {
     altitude: alertData.originalData?.icnf?.altitude 
       ? `${Number(alertData.originalData.icnf.altitude).toFixed(2)} m` 
-      : (alertData.originalData?.ALTITUDEMEDIA ? `${Number(alertData.originalData.ALTITUDEMEDIA).toFixed(2)} m` : 'N/A'),
+      : (alertData.originalData?.ALTITUDEMEDIA ? `${Number(alertData.originalData.ALTITUDEMEDIA).toFixed(2)} m` : 
+        (alertData.originalData?.altitude ? `${Number(alertData.originalData.altitude).toFixed(2)} m` : 'N/A')),
 
-    fireType: alertData.originalData?.natureza || 'N/A',
-    region: alertData.location || 'N/A',
+    fireType: alertData.originalData?.natureza || alertData.originalData?.Natureza || 'N/A',
     
-    // WEATHER
-    temperature: alertData.originalData?.temp != null 
-      ? `${Number(alertData.originalData.temp).toFixed(1)} °C` : 'N/A',
+    region: alertData.location || alertData.originalData?.DISTRITO || 'N/A',
+    
+    // WEATHER: try both new and old field names
+    temperature: (alertData.originalData?.temp ?? alertData.originalData?.TEMPERATURA) != null 
+      ? `${Number(alertData.originalData?.temp ?? alertData.originalData?.TEMPERATURA).toFixed(1)} °C` : 'N/A',
 
-    relativeHumidity: alertData.originalData?.humidade != null 
-      ? `${Number(alertData.originalData.humidade).toFixed(1)}%` : 'N/A',
+    relativeHumidity: (alertData.originalData?.humidade ?? alertData.originalData?.HUMIDADERELATIVA) != null 
+      ? `${Number(alertData.originalData?.humidade ?? alertData.originalData?.HUMIDADERELATIVA).toFixed(1)}%` : 'N/A',
 
-    windSpeed: alertData.originalData?.vento != null 
-      ? `${Number(alertData.originalData.vento).toFixed(1)} km/h` : 'N/A',
+    windSpeed: (alertData.originalData?.vento ?? alertData.originalData?.VENTOINTENSIDADE) != null 
+      ? `${Number(alertData.originalData?.vento ?? alertData.originalData?.VENTOINTENSIDADE).toFixed(1)} km/h` : 'N/A',
 
+    // new weather data from pipeline
     pressure: alertData.originalData?.pressao != null 
       ? `${Number(alertData.originalData.pressao).toFixed(1)} hPa` : 'N/A',
 
@@ -108,35 +110,32 @@ export default function AlertDetails({ userData, onLogout }) {
 
     windDirection: alertData.originalData?.direcao_vento != null 
       ? `${Number(alertData.originalData.direcao_vento).toFixed(0)}°` : 'N/A',
-      
-    fwi: alertData.originalData?.fwi != null ? Number(alertData.originalData.fwi).toFixed(1) : 'N/A',
-    isi: alertData.originalData?.isi != null ? Number(alertData.originalData.isi).toFixed(1) : 'N/A',
+
+    // FWI 
+    fwi: (alertData.originalData?.fwi ?? alertData.originalData?.FWI) != null 
+       ? Number(alertData.originalData?.fwi ?? alertData.originalData?.FWI).toFixed(1) : 'N/A',
+       
+    isi: (alertData.originalData?.isi ?? alertData.originalData?.ISI) != null 
+       ? Number(alertData.originalData?.isi ?? alertData.originalData?.ISI).toFixed(1) : 'N/A',
     
+    // VPD_kPa
     vpd: alertData.originalData?.VPD_kPa != null 
       ? `${Number(alertData.originalData.VPD_kPa).toFixed(2)} kPa` : 'N/A',
   };
 
   // Real-time resources (Actual values)
   const realTimeResources = {
-    firefighters: alertData.originalData?.Real_Operacionais_Man || alertData.originalData?.Operacionais_Man || 'N/A',
-    vehicles: alertData.originalData?.Real_Meios_Terrestres || alertData.originalData?.Meios_Terrestres || 'N/A',
-    helicopters: alertData.originalData?.Real_Meios_Aereos || alertData.originalData?.Meios_Aereos || 'N/A',
+    firefighters: alertData.originalData?.Real_Homens || alertData.originalData?.Real_Operacionais_Man || alertData.originalData?.Operacionais_Man || '0',
+    vehicles: alertData.originalData?.Real_Terrestres || alertData.originalData?.Real_Meios_Terrestres || alertData.originalData?.Meios_Terrestres || '0',
+    helicopters: alertData.originalData?.Real_Aereos || alertData.originalData?.Real_Meios_Aereos || alertData.originalData?.Meios_Aereos || '0',
   };
 
   // Predicted resources (ML Model output)
+  // Try reading transformed data name or the one directly from python
   const predictedResources = {
-    firefighters: {
-      predicted: alertData.originalData?.Previsto_Operacionais_Man || 'N/A',
-      
-    },
-    vehicles: {
-      predicted: alertData.originalData?.Previsto_Meios_Terrestres || 'N/A',
-      
-    },
-    helicopters: {
-      predicted: alertData.originalData?.Previsto_Meios_Aereos || 'N/A',
-     
-    },
+    firefighters: { predicted: alertData.originalData?.Previsto_Operacionais_Man || alertData.originalData?.Prev_Homens || 'N/A' },
+    vehicles: { predicted: alertData.originalData?.Previsto_Meios_Terrestres || alertData.originalData?.Prev_Terrestres || 'N/A' },
+    helicopters: { predicted: alertData.originalData?.Previsto_Meios_Aereos || alertData.originalData?.Prev_Aereos || 'N/A' },
   };
 
   // --------- PDF GENERATION ----------

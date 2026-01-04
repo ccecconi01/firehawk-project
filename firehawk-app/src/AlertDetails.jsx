@@ -57,6 +57,7 @@ export default function AlertDetails({ userData, onLogout }) {
   }, [alertId]);
 
   const handleLogout = () => onLogout?.();
+  console.log("DADOS ORIGINAIS:", alertData?.originalData);
 
   if (loading) {
     return (

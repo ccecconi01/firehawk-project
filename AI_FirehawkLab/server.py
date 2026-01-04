@@ -7,37 +7,40 @@ import os
 import pipeline_active 
 
 # PATH CONFIGURATION
-# Try to find the 'build' or 'dist' folder from React
+# 1. os.path.dirname(__file__) -> Get where I am (AI_FirehawkLab)
+# 2. '..' -> Go up to root (/app)
+# 3. 'firehawk-app' -> Enter the frontend folder
+# 4. 'dist' -> Enter the build folder (If Vite it's 'dist', if CRA it's 'build')
 FRONTEND_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'firehawk-app', 'dist')
-# If you use VITE, change 'build' to 'dist' in the line above!
 
-app = Flask(__name__, static_folder=FRONTEND_FOLDER, static_url_path='')
+# Configure Flask to serve static files from this folder
+app = Flask(__name__, static_folder=FRONTEND_FOLDER)
 CORS(app)
 
-# 1. Route to run the pipeline
+# --- 1. API ROUTES (Have priority) ---
 @app.route('/api/refresh-data', methods=['POST'])
 def refresh_data():
     try:
-        print("--- FireHawk: Pipeline Triggered ---")
+        print("--- 🦅 FireHawk: Pipeline Triggered ---")
         pipeline_active.run_pipeline()
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-# 2. Route to serve React (Home Page)
-@app.route('/')
-def serve_react():
-    return send_from_directory(FRONTEND_FOLDER, 'index.html')
-
-# 3. Route to serve static files (CSS, JS, Images, JSON)
+# --- 2. "CATCH-ALL" ROUTE FOR REACT (The Secret) ---
+# Any route that is not /api/... falls here.
+@app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
-def serve_static(path):
-    # If the file exists in the React folder, serve it
-    if os.path.exists(os.path.join(FRONTEND_FOLDER, path)):
-        return send_from_directory(FRONTEND_FOLDER, path)
-    # If not, serve index.html (for React Router to work)
-    return send_from_directory(FRONTEND_FOLDER, 'index.html')
+def serve(path):
+    # Check if the file physically exists (e.g., logo.png, main.js, css)
+    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+        return send_from_directory(app.static_folder, path)
+    
+    # If the file doesn't exist (e.g., /dashboard, /alert/5), serve index.html
+    # React Router will read the URL and show the correct page.
+    return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
+    # Port 5001 as configured
     port = int(os.environ.get("PORT", 5001))
     app.run(host='0.0.0.0', port=port)

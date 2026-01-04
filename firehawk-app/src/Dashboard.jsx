@@ -89,17 +89,17 @@ export default function Dashboard({ userData, onLogout }) {
           const [datePart, timePart] = value.split(',').map((s) => s.trim());
           if (!datePart || !timePart) return 0;
 
-          // CORREÇÃO AQUI: Normalizar separadores (troca - por /)
+          // Normalize separators (replace - with /)
           const normalizedDate = datePart.replace(/-/g, '/');
           
-          // Agora o split '/' funciona sempre
+          // Now the split '/' always works
           const [day, month, year] = normalizedDate.split('/').map(Number);
           const [hour, minute] = timePart.split(':').map(Number);
 
           // Build JS Date
           const dateObj = new Date(year, month - 1, day, hour, minute);
           
-          // Se a data for inválida, retorna 0 para ir pro final da lista
+          // If the date is invalid, return 0 to sort to the end of the list
           return isNaN(dateObj.getTime()) ? 0 : dateObj.getTime();
         };
 

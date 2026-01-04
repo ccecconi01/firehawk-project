@@ -12,7 +12,8 @@ export function transformFireData(jsonData) {
 
     if (fire.data && fire.hora) {
       // The new format coming from Python
-      formattedDate = `${fire.data}, ${fire.hora}`;
+      const dateFixed = fire.data.replace(/-/g, '/');
+      formattedDate = `${dateFixed}, ${fire.hora}`;
     } else if (fire.Data_Atualizacao) {
       // Keep your original fallback logic
       const updateDate = new Date(fire.Data_Atualizacao.replace(' ', 'T'));
@@ -96,7 +97,7 @@ export function transformFireData(jsonData) {
       pressao: fire.pressao,             // From Python
       direcao_vento: fire.direcao_vento, // From Python
       chuva_24h: fire.chuva_24h,  
-      vpd: fire.vpd,       // From Python
+      VPD_kPa: fire.vpd_kpa || fire.VPD_kPa || fire.vpd,      // From Python
 
       
       altitude: fire.altitude || fire.ALTITUDEMEDIA,

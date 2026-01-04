@@ -20,7 +20,7 @@ print("Loading data...")
 try:
     df = pd.read_csv('dataset_final_clean.csv')
 except FileNotFoundError:
-    print("CRITICAL ERROR: Could not find 'dataset_final_clean1.csv'. Check the folder.")
+    print("CRITICAL ERROR: Could not find 'dataset_final_clean.csv'. Check the folder.")
     exit()
 
 #2. SANITIZATION TAKEN OUT AND ADDED TO FILTERCLEANMERGE.PY

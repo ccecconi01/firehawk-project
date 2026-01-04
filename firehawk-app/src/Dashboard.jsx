@@ -78,6 +78,10 @@ export default function Dashboard({ userData, onLogout }) {
          * Returns: milliseconds since epoch (number)
          * If parsing fails, returns 0 so it sorts to the end.
          */
+        /**
+         * Parse your "lastlyUpdated" string into a timestamp number.
+         * Handles both "DD/MM/YYYY" and "DD-MM-YYYY".
+         */
         const parseDateTime = (value) => {
           if (!value) return 0;
 
@@ -85,12 +89,18 @@ export default function Dashboard({ userData, onLogout }) {
           const [datePart, timePart] = value.split(',').map((s) => s.trim());
           if (!datePart || !timePart) return 0;
 
-          // Extract day/month/year and hour/minute as numbers
-          const [day, month, year] = datePart.split('/').map(Number);
+          // CORREÇÃO AQUI: Normalizar separadores (troca - por /)
+          const normalizedDate = datePart.replace(/-/g, '/');
+          
+          // Agora o split '/' funciona sempre
+          const [day, month, year] = normalizedDate.split('/').map(Number);
           const [hour, minute] = timePart.split(':').map(Number);
 
-          // Build JS Date and return numeric timestamp for comparisons
-          return new Date(year, month - 1, day, hour, minute).getTime();
+          // Build JS Date
+          const dateObj = new Date(year, month - 1, day, hour, minute);
+          
+          // Se a data for inválida, retorna 0 para ir pro final da lista
+          return isNaN(dateObj.getTime()) ? 0 : dateObj.getTime();
         };
 
         // Sort newest -> oldest by "lastlyUpdated"

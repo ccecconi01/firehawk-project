@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+import config from './config';
 
 export default function ManageProfileModal({ userData, onClose, onPasswordUpdated }) {
   // Form state for the 3 password inputs
@@ -71,7 +72,7 @@ export default function ManageProfileModal({ userData, onClose, onPasswordUpdate
        * - currentPassword: to verify the user knows their current password
        * - newPassword: the desired new password
        */
-      const response = await fetch('https://firehawk-project-production.up.railway.app/api/update-password', {
+      const response = await fetch('${config.AUTH_API}/api/update-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json', // sending JSON body

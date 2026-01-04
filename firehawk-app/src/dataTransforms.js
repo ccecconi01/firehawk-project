@@ -34,7 +34,7 @@ export function transformFireData(jsonData) {
     const aerial = Number(fire.Real_Aereos) || Number(fire.Real_Meios_Aereos) || Number(fire.Meios_Aereos) || 0;
 
     // Adjustment to display the full string on the Dashboard (H | T | A) now that we have these data
-    const units = `${man} H | ${terrain} T | ${aerial} A`;
+    const units = `${man} M | ${terrain} T | ${aerial} A`;
 
     // --- ADAPTATION 3: STATUS / LEVEL ---
     // Map 'status' (new) or 'Estado' (old)

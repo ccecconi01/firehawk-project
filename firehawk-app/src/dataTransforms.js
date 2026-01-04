@@ -33,6 +33,11 @@ export function transformFireData(jsonData) {
     const terrain = Number(fire.Real_Terrestres) || Number(fire.Meios_Terrestres) || 0;
     const aerial = Number(fire.Real_Aereos) || Number(fire.Real_Meios_Aereos) || Number(fire.Meios_Aereos) || 0;
 
+    // Map the new fields (Previsto_...) or use the old ones (Prev_Homens, etc.) as fallback
+    const predictedMan = Number(fire.Previsto_Operacionais) || Number(fire.Prev_Homens) || 0;
+    const predictedTerrain = Number(fire.Previsto_Meios_Terrestres) || Number(fire.Prev_Terrestres) || 0;
+    const predictedAerial = Number(fire.Previsto_Meios_Aereos) || Number(fire.Prev_Aereos) || 0;
+
     // Adjustment to display the full string on the Dashboard (H | T | A) now that we have these data
     const units = `${man} M | ${terrain} T | ${aerial} A`;
 
@@ -101,9 +106,9 @@ export function transformFireData(jsonData) {
       
       
       // FORECASTS (New pipeline fields for the comparison chart)
-      Previsto_Operacionais_Man: fire.Prev_Homens || fire.Previsto_Operacionais_Man,
-      Previsto_Meios_Terrestres: fire.Prev_Terrestres || fire.Previsto_Meios_Terrestres,
-      Previsto_Meios_Aereos: fire.Prev_Aereos || fire.Previsto_Meios_Aereos,
+      Previsto_Operacionais_Man: predictedMan,
+      Previsto_Meios_Terrestres: predictedTerrain,
+      Previsto_Meios_Aereos: predictedAerial,
       
       // ACTUALS (Explicit for comparison)
       Real_Operacionais_Man: fire.Real_Homens,

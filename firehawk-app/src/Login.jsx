@@ -24,7 +24,7 @@ export default function Login({ onLogin }) {
         return;
       }
 
-      const response = await fetch('${config.AUTH_API}/api/login', {
+      const response = await fetch(`${config.AUTH_API}/api/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

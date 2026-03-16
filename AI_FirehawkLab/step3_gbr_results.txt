@@ -1,0 +1,21 @@
+=== STEP 3: Per-Target GradientBoostingRegressor + Natureza features removed ===
+Total features used: 20
+Main regression targets: ['Operacionais_Man', 'Meios_Terrestres']
+Natureza_* features: REMOVED (near-zero importance confirmed in Step 1)
+
+--- Main Model (per-target GBR) ---
+OVERALL R2:  0.0022
+OVERALL MAE: 1.88
+
+Operacionais_Man: R2=-0.0037 | MAE=2.88 | pred_range=[2.25, 16.29]
+Meios_Terrestres: R2=0.0081 | MAE=0.88 | pred_range=[1.06, 3.89]
+
+--- Meios_Aereos Binary Classifier (unchanged from Step 2) ---
+ROC-AUC:   0.7776
+Precision: 0.0822
+Recall:    0.3077
+F1:        0.1297
+
+--- Meios_Aereos Count Regressor (on positives only) ---
+R²:  0.0676
+MAE: 0.26

@@ -1,0 +1,50 @@
+=== STEP 3a: K-Means Exploration ===
+
+--- Part A: K-Means on Features ---
+Best K: 2  (silhouette=0.2055)
+PCA variance explained by PC1+PC2: 51.6%
+
+Mean resource deployment per feature cluster:
+         Operacionais_Man  Meios_Terrestres  n_fires
+cluster                                             
+0                    6.13              1.76    23042
+1                    6.62              2.00    16485
+
+Interpretation: if cluster means for Operacionais_Man are similar, feature-space
+clusters do NOT separate resource tiers. If they differ significantly, they do.
+
+--- Part B: K-Means on Targets ---
+Best K: 7  (silhouette=0.6923)
+
+Cluster centroids (original scale, sorted Small → Large):
+  Tier 0 (8633 fires, 21.8%): Operacionais_Man=2.0  Meios_Terrestres=1.0
+  Tier 1 (2705 fires, 6.8%): Operacionais_Man=4.1  Meios_Terrestres=2.1
+  Tier 2 (12540 fires, 31.7%): Operacionais_Man=4.9  Meios_Terrestres=1.0
+  Tier 3 (7797 fires, 19.7%): Operacionais_Man=7.3  Meios_Terrestres=2.0
+  Tier 4 (4951 fires, 12.5%): Operacionais_Man=9.5  Meios_Terrestres=3.1
+  Tier 5 (2536 fires, 6.4%): Operacionais_Man=15.7  Meios_Terrestres=4.6
+  Tier 6 (365 fires, 0.9%): Operacionais_Man=32.7  Meios_Terrestres=9.3
+
+Operacionais_Man per tier (percentiles):
+        count       mean        std   min   25%   50%   75%   90%    max
+tier                                                                    
+0      8633.0   2.013089   0.548560   1.0   2.0   2.0   2.0   3.0    3.0
+1      2705.0   4.186322   0.788249   2.0   4.0   4.0   5.0   5.0    5.0
+2     12540.0   4.874083   0.507553   4.0   5.0   5.0   5.0   5.0   18.0
+3      7797.0   7.361934   1.310387   6.0   7.0   7.0   7.0  10.0   23.0
+4      4951.0   9.700869   2.128687   5.0   8.0   9.0  11.0  12.0   23.0
+5      2536.0  16.013013   3.576527   7.0  14.0  15.0  18.0  21.0   54.0
+6       365.0  39.463014  44.098938  14.0  24.0  29.0  36.0  59.0  408.0
+
+Meios_Terrestres per tier (percentiles):
+        count       mean        std  min  25%  50%   75%   90%    max
+tier                                                                 
+0      8633.0   0.994556   0.086605  0.0  1.0  1.0   1.0   1.0    2.0
+1      2705.0   2.071719   0.259499  2.0  2.0  2.0   2.0   2.0    4.0
+2     12540.0   0.992185   0.088060  0.0  1.0  1.0   1.0   1.0    1.0
+3      7797.0   1.996665   0.057653  1.0  2.0  2.0   2.0   2.0    2.0
+4      4951.0   3.145223   0.376208  2.0  3.0  3.0   3.0   4.0    5.0
+5      2536.0   4.685726   0.834777  2.0  4.0  5.0   5.0   6.0    9.0
+6       365.0  10.986301  12.374084  5.0  7.0  8.0  10.0  14.0  129.0
+
+These centroids and percentile boundaries inform the tier thresholds for Step 3b.

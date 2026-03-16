@@ -1,0 +1,22 @@
+=== PHASE 1: RandomForestRegressor + n_concurrent_fires + district capacity features ===
+Total features used: 23
+Main regression targets: ['Operacionais_Man', 'Meios_Terrestres']
+New features added: n_concurrent_fires, district_max_single_incident, district_median_single_incident
+Baseline (Step 2 RF, no capacity features): Overall R2=0.0069 | Operacionais_Man R2=0.0024 | Meios_Terrestres R2=0.0114
+
+--- Main Model (per-target RF) ---
+OVERALL R2:  0.0061
+OVERALL MAE: 1.87
+
+Operacionais_Man: R2=0.0003 | MAE=2.87 | pred_range=[1.17, 10.58]
+Meios_Terrestres: R2=0.0118 | MAE=0.88 | pred_range=[1.10, 4.01]
+
+--- Meios_Aereos Binary Classifier (unchanged from Step 2) ---
+ROC-AUC:   0.7716
+Precision: 0.0749
+Recall:    0.3205
+F1:        0.1214
+
+--- Meios_Aereos Count Regressor (on positives only) ---
+R2:  0.0636
+MAE: 0.26

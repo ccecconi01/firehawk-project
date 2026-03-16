@@ -1,0 +1,10 @@
+=== STEP 1b: DISTRITO target encoding + Natureza cleanup ===
+Total features used: 24
+Distrito target-encoded features: ['Distrito_enc_Operacionais_Man', 'Distrito_enc_Meios_Terrestres', 'Distrito_enc_Meios_Aereos']
+
+OVERALL R2:  0.0095
+OVERALL MAE: 1.24
+
+Operacionais_Man: R2=0.0024 | MAE=2.84 | pred_range=[1.00, 13.29]
+Meios_Terrestres: R2=0.0115 | MAE=0.88 | pred_range=[1.15, 4.84]
+Meios_Aereos: R2=0.0144 | MAE=0.02 | pred_range=[0.00, 0.33]

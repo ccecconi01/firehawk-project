@@ -1,0 +1,18 @@
+=== PHASE 2c: Range-Based Tier Evaluation (K=3) ===
+
+Tier ranges (p5-p95 from training set):
+  Tier 0: Ops [1 - 3], Veh [1 - 2], median ops=2, median veh=1
+  Tier 1: Ops [4 - 7], Veh [1 - 2], median ops=5, median veh=1
+  Tier 2: Ops [8 - 23], Veh [2 - 6], median ops=11, median veh=3
+
+--- Range Accuracy (does real value fall within predicted tier's range?) ---
+Operacionais_Man range accuracy: 52.5%
+Meios_Terrestres range accuracy: 78.9%
+Both within range:               51.2%
+
+--- Comparison ---
+Method                           Accuracy     R2_Ops     R2_Veh    MAE_Ops    MAE_Veh
+Tier label (exact match)            0.535        N/A        N/A        N/A        N/A
+Centroid mapping                      N/A     -0.087     -0.082       3.39       0.97
+Median mapping                        N/A     -0.077     -0.105       3.25       0.88
+Range accuracy (both)               0.512        N/A        N/A        N/A        N/A

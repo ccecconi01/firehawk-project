@@ -1,0 +1,41 @@
+=== PHASE 2b: RF Classifier on Deployment Tiers (K=5) ===
+Total features used: 18
+Baseline regression (Phase 1 RF): Overall R2=0.0069 | Operacionais_Man R2=0.0024 | Meios_Terrestres R2=0.0114
+
+Tier centroids:
+  Tier 0: Operacionais_Man=2.0  Meios_Terrestres=1.0  (7264 train fires, 23.0%)
+  Tier 1: Operacionais_Man=4.8  Meios_Terrestres=1.0  (9999 train fires, 31.6%)
+  Tier 2: Operacionais_Man=6.2  Meios_Terrestres=2.1  (7510 train fires, 23.7%)
+  Tier 3: Operacionais_Man=10.3  Meios_Terrestres=3.0  (5239 train fires, 16.6%)
+  Tier 4: Operacionais_Man=19.5  Meios_Terrestres=5.5  (1627 train fires, 5.1%)
+
+--- Classification Metrics ---
+Overall Accuracy: 0.3900
+Weighted F1:      0.3775
+
+Per-tier report:
+              precision    recall  f1-score   support
+
+          T0       0.38      0.41      0.39      1874
+          T1       0.49      0.60      0.54      2530
+          T2       0.32      0.28      0.30      1849
+          T3       0.23      0.17      0.20      1259
+          T4       0.26      0.17      0.20       398
+
+    accuracy                           0.39      7910
+   macro avg       0.34      0.33      0.33      7910
+weighted avg       0.37      0.39      0.38      7910
+
+--- Regression-Equivalent Metrics (centroid mapping) ---
+Operacionais_Man: R2=-0.1206 | MAE=3.40
+Meios_Terrestres: R2=-0.1275 | MAE=0.93
+
+--- Meios_Aereos (unchanged from Step 2) ---
+ROC-AUC:   0.7713
+Precision: 0.0833
+Recall:    0.3333
+F1:        0.1333
+
+--- Meios_Aereos Count Regressor (on positives only) ---
+R2:  0.0684
+MAE: 0.26

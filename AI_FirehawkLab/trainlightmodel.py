@@ -132,7 +132,8 @@ features = [
     'Mes', 'Hora',            # Temporal
     #'Hora_sin', 'Hora_cos', 'Mes_sin', 'Mes_cos', 'DiaSemana', 'FimDeSemana',
     'FWI', 'DMC', 'DC', 'ISI', 'BUI', 'FM', # Physics (FWI System)
-    'TEMPERATURA', 'HUMIDADERELATIVA', 'VENTOINTENSIDADE', 'VPD_kPa', # Weather
+    'TEMPERATURA', 'HUMIDADERELATIVA', 'VENTOINTENSIDADE', # Weather
+    #'VPD_kPa', # removed: negative permutation importance in Phase 2b
     'DECLIVEMEDIO', 'ALTITUDEMEDIA', # Topography
     'n_concurrent_fires', # Phase 1: resource competition signal
 ]
@@ -193,6 +194,9 @@ if dist_train is not None:
         tmp = pd.DataFrame({'DISTRITO': dist_train.values, 'val': y_train[t].values})
         means = tmp.groupby('DISTRITO')['val'].mean()
         global_mean = y_train[t].mean()
+        if enc_col == 'Distrito_enc_Operacionais_Man':  # negative perm importance in Phase 2b — excluded
+            district_encodings[t] = means.to_dict()
+            continue
         X_train[enc_col] = dist_train.values
         X_train[enc_col] = X_train[enc_col].map(means).fillna(global_mean)
         X_test[enc_col] = dist_test.values
@@ -219,20 +223,19 @@ if dist_train is not None:
     global_max    = y_train[ref_col].max()
     global_median = y_train[ref_col].median()
 
-    X_train['district_max_single_incident']    = dist_train.values
-    X_train['district_max_single_incident']    = X_train['district_max_single_incident'].map(dist_max).fillna(global_max)
-    X_test['district_max_single_incident']     = dist_test.values
-    X_test['district_max_single_incident']     = X_test['district_max_single_incident'].map(dist_max).fillna(global_max)
+    # X_train['district_max_single_incident']    = dist_train.values  # negative perm importance — excluded
+    # X_train['district_max_single_incident']    = X_train['district_max_single_incident'].map(dist_max).fillna(global_max)
+    # X_test['district_max_single_incident']     = dist_test.values
+    # X_test['district_max_single_incident']     = X_test['district_max_single_incident'].map(dist_max).fillna(global_max)
 
     X_train['district_median_single_incident'] = dist_train.values
     X_train['district_median_single_incident'] = X_train['district_median_single_incident'].map(dist_median).fillna(global_median)
     X_test['district_median_single_incident']  = dist_test.values
     X_test['district_median_single_incident']  = X_test['district_median_single_incident'].map(dist_median).fillna(global_median)
 
-    features.append('district_max_single_incident')
+    #features.append('district_max_single_incident')  # negative permutation importance in Phase 2b — excluded
     features.append('district_median_single_incident')
-    print(f"-> Phase 1 capacity features added: district_max_single_incident, district_median_single_incident")
-    print(f"   Max range: [{X_train['district_max_single_incident'].min():.0f}, {X_train['district_max_single_incident'].max():.0f}]")
+    print(f"-> Phase 1 capacity feature added: district_median_single_incident (district_max excluded — negative importance)")
     print(f"   Median range: [{X_train['district_median_single_incident'].min():.0f}, {X_train['district_median_single_incident'].max():.0f}]")
 
 # 6. PHASE 2: K-MEANS TIER LABELING + RF CLASSIFIER
@@ -245,7 +248,7 @@ if dist_train is not None:
 # KMeans is fit in log1p space to avoid large fires dominating the cluster geometry.
 # The trained KMeans is saved so that pipeline_active.py can assign tiers to live predictions.
 
-K_TIERS = 7
+K_TIERS = 3
 print(f"\n--- Phase 2: K-Means Tier Labeling (K={K_TIERS}) ---")
 
 # Fit KMeans on TRAINING SET ONLY (no leakage) in log1p space
@@ -274,6 +277,29 @@ for i in range(K_TIERS):
     n = tier_counts_train.get(i, 0)
     pct = 100 * n / len(tier_train)
     print(f"  Tier {i}: Operacionais_Man={centroids_orig[i,0]:.1f}  Meios_Terrestres={centroids_orig[i,1]:.1f}  ({n} fires, {pct:.1f}%)")
+
+# Compute tier ranges (p5–p95) from TRAINING SET ONLY.
+# Used for range-based evaluation: instead of asking "did we predict the exact tier?",
+# we ask "does the real value fall within the predicted tier's plausible range?".
+# p5/p95 chosen to exclude outliers that would widen every tier to uselessness.
+tier_ranges = {}
+for tier in range(K_TIERS):
+    mask = (tier_train == tier)
+    ops = y_train['Operacionais_Man'].values[mask]
+    veh = y_train['Meios_Terrestres'].values[mask]
+    tier_ranges[tier] = {
+        'ops_min':    np.percentile(ops, 5),
+        'ops_max':    np.percentile(ops, 95),
+        'veh_min':    np.percentile(veh, 5),
+        'veh_max':    np.percentile(veh, 95),
+        'ops_median': np.median(ops),
+        'veh_median': np.median(veh),
+    }
+print("Tier ranges (p5-p95, training set):")
+for i in range(K_TIERS):
+    r = tier_ranges[i]
+    print(f"  Tier {i}: Ops [{r['ops_min']:.0f}-{r['ops_max']:.0f}] median={r['ops_median']:.0f} | "
+          f"Veh [{r['veh_min']:.0f}-{r['veh_max']:.0f}] median={r['veh_median']:.0f}")
 
 # Save KMeans model for inference pipeline
 joblib.dump(kmeans, 'model_kmeans_tiers.pkl')
@@ -358,10 +384,52 @@ y_pred_centroid = centroid_map[tier_pred]    # (N_test, 2)
 y_true_real     = y_test[targets].values     # (N_test, 2)
 
 print("\n--- Regression-Equivalent Metrics (centroid mapping) ---")
+r2_centroid, mae_centroid = [], []
 for i, col in enumerate(targets):
     r2_c  = r2_score(y_true_real[:, i], y_pred_centroid[:, i])
     mae_c = mean_absolute_error(y_true_real[:, i], y_pred_centroid[:, i])
+    r2_centroid.append(r2_c)
+    mae_centroid.append(mae_c)
     print(f"{col}: R2={r2_c:.4f} | MAE={mae_c:.2f}")
+
+# 8c. MEDIAN MAPPING — more robust than centroid for skewed within-tier distributions
+median_map = np.array([[tier_ranges[i]['ops_median'], tier_ranges[i]['veh_median']]
+                       for i in range(K_TIERS)])
+y_pred_median = median_map[tier_pred]
+
+print("\n--- Regression-Equivalent Metrics (median mapping) ---")
+r2_median, mae_median = [], []
+for i, col in enumerate(targets):
+    r2_m  = r2_score(y_true_real[:, i], y_pred_median[:, i])
+    mae_m = mean_absolute_error(y_true_real[:, i], y_pred_median[:, i])
+    r2_median.append(r2_m)
+    mae_median.append(mae_m)
+    print(f"{col}: R2={r2_m:.4f} | MAE={mae_m:.2f}")
+
+# 8d. RANGE-BASED ACCURACY
+# For each test sample, check if the real value falls within the predicted tier's p5–p95 range.
+# This is a softer, operationally meaningful metric: the model is "correct" if it points to the
+# right deployment bracket, not necessarily the exact same k-means bucket.
+y_true_ops = y_true_real[:, 0]
+y_true_veh = y_true_real[:, 1]
+
+in_range_ops = np.array([
+    tier_ranges[tier_pred[j]]['ops_min'] <= y_true_ops[j] <= tier_ranges[tier_pred[j]]['ops_max']
+    for j in range(len(tier_pred))
+])
+in_range_veh = np.array([
+    tier_ranges[tier_pred[j]]['veh_min'] <= y_true_veh[j] <= tier_ranges[tier_pred[j]]['veh_max']
+    for j in range(len(tier_pred))
+])
+
+range_acc_ops  = in_range_ops.mean()
+range_acc_veh  = in_range_veh.mean()
+range_acc_both = (in_range_ops & in_range_veh).mean()
+
+print("\n--- Range Accuracy (real value within predicted tier's p5-p95 range) ---")
+print(f"Operacionais_Man in range: {range_acc_ops*100:.1f}%")
+print(f"Meios_Terrestres in range: {range_acc_veh*100:.1f}%")
+print(f"Both within range:         {range_acc_both*100:.1f}%")
 
 # 9. SAVE MODELS AND FEATURES
 joblib.dump(clf_tiers, 'model_tier_classifier.pkl')
@@ -371,8 +439,8 @@ print("-> Tier classifier saved: model_tier_classifier.pkl")
 print("-> Feature list saved: model_features_list.pkl (DO NOT DELETE THIS FILE)")
 
 # 10. SAVE METRICS TO FILE
-with open('step5_phase2_results.txt', 'w') as f:
-    f.write("=== PHASE 2: RF Classifier on Deployment Tiers (K=7) ===\n")
+with open('step5d_k3_clean_results.txt', 'w') as f:
+    f.write(f"=== PHASE 2b: RF Classifier on Deployment Tiers (K={K_TIERS}) ===\n")
     f.write(f"Total features used: {len(features)}\n")
     f.write(f"Baseline regression (Phase 1 RF): Overall R2=0.0069 | Operacionais_Man R2=0.0024 | Meios_Terrestres R2=0.0114\n\n")
     f.write("Tier centroids:\n")
@@ -399,7 +467,7 @@ with open('step5_phase2_results.txt', 'w') as f:
         f.write(f"\n--- Meios_Aereos Count Regressor (on positives only) ---\n")
         f.write(f"R2:  {r2_aerial_reg:.4f}\n")
         f.write(f"MAE: {mae_aerial_reg:.2f}\n")
-print("-> Metrics saved: step5_phase2_results.txt")
+print("-> Metrics saved: step5d_k3_clean_results.txt")
 
 # 11. GRAPHS
 print("Generating graphs...")
@@ -417,9 +485,9 @@ ax.set_xlabel('Predicted Tier')
 ax.set_ylabel('True Tier')
 ax.set_title(f'Phase 2: Confusion Matrix\nAccuracy={acc:.3f}  Weighted F1={f1_w:.3f}')
 plt.tight_layout()
-plt.savefig('step5_confusion_matrix.png')
+plt.savefig('step5d_k3_confusion_matrix.png')
 plt.close()
-print("-> Saved: step5_confusion_matrix.png")
+print("-> Saved: step5d_k3_confusion_matrix.png")
 
 # --- Graph 2: Tier distribution (predicted vs actual) + per-tier accuracy ---
 true_counts  = pd.Series(tier_test).value_counts().sort_index().reindex(range(K_TIERS), fill_value=0)
@@ -455,9 +523,9 @@ for xi, v in zip(x, per_tier_acc):
 
 plt.suptitle('Phase 2: Tier Analysis')
 plt.tight_layout()
-plt.savefig('step5_tier_analysis.png')
+plt.savefig('step5d_k3_tier_analysis.png')
 plt.close()
-print("-> Saved: step5_tier_analysis.png")
+print("-> Saved: step5d_k3_tier_analysis.png")
 
 # --- Graph 3: Permutation importance for the tier classifier ---
 print("Computing permutation importances for tier classifier (this may take ~30s)...")
@@ -472,9 +540,65 @@ sns.barplot(x=imp.values, y=imp.index, palette='viridis', ax=ax,
 ax.set_title('Phase 2: Permutation Importance (Tier Classifier)\nMetric: accuracy drop when feature shuffled')
 ax.set_xlabel('Mean accuracy decrease when feature shuffled')
 plt.tight_layout()
-plt.savefig('step5_importance.png')
+plt.savefig('step5d_k3_importance.png')
 plt.close()
-print("-> Saved: step5_importance.png")
+print("-> Saved: step5d_k3_importance.png")
 
-print("-> Graphs saved: step4_importance.png, step4_scatter.png")
+print("-> Graphs saved")
+
+# 12. PHASE 2c: RANGE-BASED RESULTS FILE
+with open('step5d_range_results.txt', 'w') as f:
+    f.write(f"=== PHASE 2c: Range-Based Tier Evaluation (K={K_TIERS}) ===\n\n")
+    f.write("Tier ranges (p5-p95 from training set):\n")
+    for i in range(K_TIERS):
+        r = tier_ranges[i]
+        f.write(f"  Tier {i}: Ops [{r['ops_min']:.0f} - {r['ops_max']:.0f}], "
+                f"Veh [{r['veh_min']:.0f} - {r['veh_max']:.0f}], "
+                f"median ops={r['ops_median']:.0f}, median veh={r['veh_median']:.0f}\n")
+    f.write("\n--- Range Accuracy (does real value fall within predicted tier's range?) ---\n")
+    f.write(f"Operacionais_Man range accuracy: {range_acc_ops*100:.1f}%\n")
+    f.write(f"Meios_Terrestres range accuracy: {range_acc_veh*100:.1f}%\n")
+    f.write(f"Both within range:               {range_acc_both*100:.1f}%\n")
+    f.write("\n--- Comparison ---\n")
+    f.write(f"{'Method':<30} {'Accuracy':>10} {'R2_Ops':>10} {'R2_Veh':>10} {'MAE_Ops':>10} {'MAE_Veh':>10}\n")
+    f.write(f"{'Tier label (exact match)':<30} {acc:>10.3f} {'N/A':>10} {'N/A':>10} {'N/A':>10} {'N/A':>10}\n")
+    f.write(f"{'Centroid mapping':<30} {'N/A':>10} {r2_centroid[0]:>10.3f} {r2_centroid[1]:>10.3f} {mae_centroid[0]:>10.2f} {mae_centroid[1]:>10.2f}\n")
+    f.write(f"{'Median mapping':<30} {'N/A':>10} {r2_median[0]:>10.3f} {r2_median[1]:>10.3f} {mae_median[0]:>10.2f} {mae_median[1]:>10.2f}\n")
+    f.write(f"{'Range accuracy (both)':<30} {range_acc_both:>10.3f} {'N/A':>10} {'N/A':>10} {'N/A':>10} {'N/A':>10}\n")
+print("-> Metrics saved: step5d_range_results.txt")
+
+# 13. PHASE 2c: RANGE COMPARISON PLOT
+fig, (ax_l, ax_r) = plt.subplots(1, 2, figsize=(14, 6))
+
+# Left: accuracy metrics comparison
+acc_labels = ['Tier exact\nmatch', 'Ops in\nrange', 'Veh in\nrange', 'Both in\nrange']
+acc_values = [acc, range_acc_ops, range_acc_veh, range_acc_both]
+acc_colors = ['steelblue', 'mediumseagreen', 'mediumseagreen', 'darkgreen']
+bars = ax_l.bar(acc_labels, acc_values, color=acc_colors)
+ax_l.set_ylim(0, 1.1)
+ax_l.set_ylabel('Proportion correct')
+ax_l.set_title('Accuracy Metrics Comparison')
+for bar, v in zip(bars, acc_values):
+    ax_l.text(bar.get_x() + bar.get_width() / 2, v + 0.02, f'{v*100:.1f}%',
+              ha='center', va='bottom', fontsize=10, fontweight='bold')
+
+# Right: R² comparison across methods (Operacionais_Man only, most challenging)
+r2_labels  = ['Regression\nbaseline\n(Phase 1)', 'Centroid\nmapping', 'Median\nmapping']
+r2_values  = [0.0024, r2_centroid[0], r2_median[0]]
+r2_colors  = ['slategray', 'tomato', 'steelblue']
+bars2 = ax_r.bar(r2_labels, r2_values, color=r2_colors)
+ax_r.axhline(0, color='black', linewidth=0.8, linestyle='--')
+ax_r.set_ylabel('R²  (Operacionais_Man)')
+ax_r.set_title('R² Comparison — Operacionais_Man\n(regression baseline vs tier mappings)')
+for bar, v in zip(bars2, r2_values):
+    ypos = v + 0.003 if v >= 0 else v - 0.008
+    ax_r.text(bar.get_x() + bar.get_width() / 2, ypos, f'{v:.3f}',
+              ha='center', va='bottom', fontsize=10, fontweight='bold')
+
+plt.suptitle(f'Phase 2c: Range-Based Evaluation Summary (K={K_TIERS})', fontsize=13)
+plt.tight_layout()
+plt.savefig('step5d_range_comparison.png')
+plt.close()
+print("-> Saved: step5d_range_comparison.png")
+
 print("Completed!")

@@ -5,7 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import jsPDF from 'jspdf';
 
-import { transformFireData } from './dataTransforms';
+import { transformFireData, TIER_LABELS, formatAerial } from './dataTransforms';
 import ProfileModal from './ProfileModal';
 import './AlertDetails.css';
 
@@ -131,12 +131,16 @@ export default function AlertDetails({ userData, onLogout }) {
     helicopters: alertData.originalData?.Real_Aereos || alertData.originalData?.Real_Meios_Aereos || alertData.originalData?.Meios_Aereos || '0',
   };
 
-  // Predicted resources (ML Model output)
-  // Try reading transformed data name or the one directly from python
-  const predictedResources = {
-    firefighters: { predicted: alertData.originalData?.Previsto_Operacionais_Man || alertData.originalData?.Prev_Homens || 'N/A' },
-    vehicles: { predicted: alertData.originalData?.Previsto_Meios_Terrestres || alertData.originalData?.Prev_Terrestres || 'N/A' },
-    helicopters: { predicted: alertData.originalData?.Previsto_Meios_Aereos || alertData.originalData?.Prev_Aereos || 'N/A' },
+  // Predicted RESPONSE (tier model output): tier + resource ranges + aerial
+  // probability, replacing the old exact-count regression.
+  const od = alertData.originalData || {};
+  const predTier = od.tier ?? null;
+  const predForecast = {
+    tier: predTier,
+    label: od.tier_label ?? (predTier != null ? TIER_LABELS[predTier] : 'N/A'),
+    opsRange: od.ops_range ?? 'N/A',
+    vehRange: od.veh_range ?? 'N/A',
+    aerial: formatAerial(od.aerial_prob ?? null, od.aerial_expected ?? null),
   };
 
   // --------- PDF GENERATION ----------
@@ -203,13 +207,14 @@ export default function AlertDetails({ userData, onLogout }) {
     addLine(`Aerial: ${realTimeResources.helicopters}`);
     y += 3;
 
-    // Predicted resources (RF Model)
+    // Predicted response (tier model)
     doc.setFontSize(13);
-    addLine(`Predicted Resources`);
+    addLine(`Predicted Response`);
     doc.setFontSize(11);
-    addLine(`Firefighters: Predicted=${predictedResources.firefighters.predicted}`);
-    addLine(`Vehicles: Predicted=${predictedResources.vehicles.predicted}`);
-    addLine(`Aerial: Predicted=${predictedResources.helicopters.predicted}`);
+    addLine(`Tier: ${predForecast.tier != null ? `T${predForecast.tier} - ${predForecast.label}` : 'N/A'}`);
+    addLine(`Operatives (est.): ${predForecast.opsRange}`);
+    addLine(`Vehicles (est.): ${predForecast.vehRange}`);
+    addLine(`Aerial support: ${predForecast.aerial}`);
     y += 3;
 
     // Save file
@@ -318,19 +323,15 @@ export default function AlertDetails({ userData, onLogout }) {
             <p>Helicopters: {realTimeResources.helicopters}</p>
           </div>
 
-          {/* Predicted Resources (RF Model) */}
+          {/* Predicted Response (tier model) */}
           <div className="resources-box">
-            <h4>Predicted Resources </h4>
+            <h4>Predicted Response </h4>
             <p>
-              Firefighters: {predictedResources.firefighters.predicted} 
+              Tier: {predForecast.tier != null ? `T${predForecast.tier} — ${predForecast.label}` : 'N/A'}
             </p>
-            <p>
-              Vehicles: {predictedResources.vehicles.predicted} 
-            </p>
-            <p>
-              Helicopters: {predictedResources.helicopters.predicted} 
-            </p>
-            {/* Removed time buttons as predictions are static */}
+            <p>Operatives (est.): {predForecast.opsRange}</p>
+            <p>Vehicles (est.): {predForecast.vehRange}</p>
+            <p>Aerial support: {predForecast.aerial}</p>
           </div>
         </div>
       </div>

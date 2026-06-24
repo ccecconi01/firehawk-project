@@ -22,7 +22,7 @@ import ProfileModal from './ProfileModal';
 import './Dashboard.css';
 
 // Helper that normalizes raw JSON into the shape your UI expects
-import { transformFireData } from './dataTransforms';
+import { transformFireData, formatAerial } from './dataTransforms';
 
 // Fix Leaflet's missing icon issue by setting default icon paths (module scope: run once)
 delete L.Icon.Default.prototype._getIconUrl;
@@ -68,6 +68,17 @@ function statusBadgeClass(status) {
   if (s.includes('conclus'))
     return 'bg-gray-100 text-gray-500 ring-1 ring-inset ring-gray-200';
   return 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200';
+}
+
+/**
+ * Tier badge classes — distinct from status colors.
+ * T0 Minimal=green, T1 Standard=amber, T2 Reinforced=red.
+ */
+function tierBadgeClass(tier) {
+  if (tier === 0) return 'bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200';
+  if (tier === 1) return 'bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200';
+  if (tier === 2) return 'bg-red-100 text-red-700 ring-1 ring-inset ring-red-200';
+  return 'bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200';
 }
 
 export default function Dashboard({ userData, onLogout }) {
@@ -264,8 +275,7 @@ export default function Dashboard({ userData, onLogout }) {
                   <th className="px-4 py-3">ID</th>
                   <th className="px-4 py-3">Lastly updated</th>
                   <th className="px-4 py-3">Location</th>
-                  <th className="px-4 py-3">Units</th>
-                  <th className="px-4 py-3">Level</th>
+                  <th className="px-4 py-3">Expected response</th>
                   <th className="px-4 py-3">Status</th>
                 </tr>
               </thead>
@@ -279,8 +289,26 @@ export default function Dashboard({ userData, onLogout }) {
                     <td className="px-4 py-3 font-mono text-xs text-gray-400">{row.id}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-gray-600">{row.lastlyUpdated}</td>
                     <td className="px-4 py-3 font-medium text-gray-800">{row.location}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-600">{row.units}</td>
-                    <td className="px-4 py-3 text-gray-600">{row.level}</td>
+                    <td className="px-4 py-3">
+                      {row.tier != null ? (
+                        <div
+                          className="flex flex-col gap-0.5"
+                          title={`Operatives ${row.ops_range ?? '—'} · Vehicles ${row.veh_range ?? '—'}`}
+                        >
+                          <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${tierBadgeClass(row.tier)}`}>
+                            T{row.tier} · {row.tier_label}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            ops {row.ops_range ?? '—'} · veh {row.veh_range ?? '—'}
+                          </span>
+                          <span className={`text-xs ${row.aerial_prob != null && row.aerial_prob >= 0.35 ? 'font-medium text-red-600' : 'text-gray-400'}`}>
+                            Aerial: {formatAerial(row.aerial_prob, row.aerial_expected)}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-400">N/A</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadgeClass(row.status)}`}>
                         {row.status}
@@ -291,7 +319,7 @@ export default function Dashboard({ userData, onLogout }) {
 
                 {pageRows.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-400">
+                    <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-400">
                       No incidents match the current filters.
                     </td>
                   </tr>
@@ -351,7 +379,8 @@ export default function Dashboard({ userData, onLogout }) {
                   <br />
                   <strong>Location:</strong> {row.location}
                   <br />
-                  <strong>Units:</strong> {row.units}
+                  <strong>Response:</strong>{' '}
+                  {row.tier != null ? `T${row.tier} ${row.tier_label} (ops ${row.ops_range ?? '—'})` : 'N/A'}
                   <br />
                   <strong>Status:</strong> {row.status}
                 </Popup>

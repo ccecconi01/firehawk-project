@@ -1,4 +1,32 @@
 // dataTransforms.js
+
+// Aerial activation threshold used by the pipeline's two-stage aerial model.
+export const AERIAL_THRESHOLD = 0.35;
+
+// Tier index -> human label (Tier 0 = smallest deployment, Tier 2 = largest).
+export const TIER_LABELS = ['Minimal', 'Standard', 'Reinforced'];
+
+/** Resolve a tier label from a numeric tier (falls back to the raw label). */
+export function tierLabelOf(tier, rawLabel) {
+  if (rawLabel) return rawLabel;
+  if (tier == null) return null;
+  return TIER_LABELS[tier] ?? null;
+}
+
+/**
+ * Human-readable aerial-support indicator.
+ * prob >= threshold -> "Likely (0.41)" (+ " · ~N" when an expected count exists);
+ * otherwise -> "Unlikely". Returns "N/A" when no probability is available.
+ */
+export function formatAerial(prob, expected) {
+  if (prob == null) return 'N/A';
+  if (prob >= AERIAL_THRESHOLD) {
+    const p = Number(prob).toFixed(2);
+    return expected != null ? `Likely (${p}) · ~${expected}` : `Likely (${p})`;
+  }
+  return 'Unlikely';
+}
+
 export function transformFireData(jsonData) {
   if (!Array.isArray(jsonData)) {
     return [];
@@ -41,6 +69,16 @@ export function transformFireData(jsonData) {
 
     // Adjustment to display the full string on the Dashboard (H | T | A) now that we have these data
     const units = `${man} M | ${terrain} T | ${aerial} A`;
+
+    // --- ADAPTATION 2b: TIER FORECAST (new schema) ---
+    // Use nullish checks so tier 0 and aerial_prob 0 survive. Old historical files
+    // lack these fields, so they resolve to null (UI shows N/A) — no derivation.
+    const tier = fire.tier != null ? Number(fire.tier) : null;
+    const tierLabel = tierLabelOf(tier, fire.tier_label);
+    const opsRange = fire.ops_range ?? null;
+    const vehRange = fire.veh_range ?? null;
+    const aerialProb = fire.aerial_prob != null ? Number(fire.aerial_prob) : null;
+    const aerialExpected = fire.aerial_expected != null ? Number(fire.aerial_expected) : null;
 
     // --- ADAPTATION 3: STATUS / LEVEL ---
     // Map 'status' (new) or 'Estado' (old)
@@ -114,7 +152,15 @@ export function transformFireData(jsonData) {
       // ACTUALS (Explicit for comparison)
       Real_Operacionais_Man: fire.Real_Homens,
       Real_Meios_Terrestres: fire.Real_Terrestres,
-      Real_Meios_Aereos: fire.Real_Aereos
+      Real_Meios_Aereos: fire.Real_Aereos,
+
+      // TIER FORECAST (new schema, normalized)
+      tier,
+      tier_label: tierLabel,
+      ops_range: opsRange,
+      veh_range: vehRange,
+      aerial_prob: aerialProb,
+      aerial_expected: aerialExpected,
     };
 
     return {
@@ -127,6 +173,13 @@ export function transformFireData(jsonData) {
       units,
       level,
       status: currentStatus || 'Unknown',
+      // Tier forecast exposed on the row for the listing table
+      tier,
+      tier_label: tierLabel,
+      ops_range: opsRange,
+      veh_range: vehRange,
+      aerial_prob: aerialProb,
+      aerial_expected: aerialExpected,
       originalData: enrichedOriginal,
     };
   });

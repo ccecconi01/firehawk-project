@@ -4,7 +4,9 @@ import joblib
 import numpy as np
 import datetime
 from datetime import timedelta
+from collections import Counter
 import math
+import json
 import sys
 import os
 
@@ -26,9 +28,15 @@ except ImportError:
     c2j = None
 
 # --- FILE SETTINGS ---
-MODEL_FILE = os.path.join(SCRIPT_DIR, 'model_resources_lite.pkl')
-FEATURES_FILE = os.path.join(SCRIPT_DIR, 'model_features_list.pkl')
+# Active model: the dissertation tier bundle (KMeans tiers + two-stage aerial).
+BUNDLE_FILE = os.path.join(SCRIPT_DIR, 'model_tier_pipeline.pkl')
+# Legacy 'lite' MultiOutputRegressor kept in the repo as a fallback artifact only;
+# it is no longer loaded or used by the live pipeline (R2 ~ 0, exact-count regression).
+LEGACY_MODEL_FILE = os.path.join(SCRIPT_DIR, 'model_resources_lite.pkl')
 OUTPUT_FILE = os.path.join(SCRIPT_DIR, 'dashboard_predictions.csv')
+
+# Tier label mapping (Tier 0 = smallest deployment ... Tier 2 = largest).
+TIER_LABELS = ['Minimal', 'Standard', 'Reinforced']
 
 # JSON path for the frontend (go up one level '..', into firehawk-app/public/data)
 DIST_PATH = os.path.normpath(os.path.join(SCRIPT_DIR, '..', 'firehawk-app', 'dist', 'data'))
@@ -294,24 +302,99 @@ def fetch_recent_history_v2(days_back):
 # 4. MAIN PIPELINE
 # ==========================================
 
+def _norm_district(name):
+    """Normalize a district name to match the bundle's training keys (strip + Title Case)."""
+    if name is None:
+        return ''
+    return str(name).strip().title()
+
+
+def _range_str(rng, lo_key, hi_key):
+    """Format a tier p5-p95 bracket as 'lo-hi' using an en dash (e.g. '8–24')."""
+    return f"{int(round(rng[lo_key]))}–{int(round(rng[hi_key]))}"
+
+
+def build_feature_dict(lat, lon, dt_obj, temp, rh, wind,
+                       fwi_idx, fm, declive, altitude,
+                       n_concurrent, district_norm, district_stats):
+    """
+    Assemble the EXACT feature vector expected by the tier bundle.
+
+    Every key produced here must exist in bundle['features']. The three
+    district-derived features fall back to the training global statistic when the
+    district is unknown -- the dataset-wide prior, never a fabricated value.
+    """
+    doy = dt_obj.timetuple().tm_yday
+    return {
+        'LAT': lat,
+        'LON': lon,
+        'Mes': dt_obj.month,
+        'Hora': dt_obj.hour,
+        'doy_sin': math.sin(2 * math.pi * doy / 365),
+        'doy_cos': math.cos(2 * math.pi * doy / 365),
+        'FWI': fwi_idx['FWI'],
+        'DMC': fwi_idx['DMC'],
+        'DC':  fwi_idx['DC'],
+        'ISI': fwi_idx['ISI'],
+        'BUI': fwi_idx['BUI'],
+        'FM':  fm,
+        'TEMPERATURA': temp,
+        'HUMIDADERELATIVA': rh,
+        'VENTOINTENSIDADE': wind,
+        'DECLIVEMEDIO': declive,
+        'ALTITUDEMEDIA': altitude,
+        'n_concurrent_fires': n_concurrent,
+        'Distrito_enc_Meios_Terrestres': district_stats['enc_Meios_Terrestres'].get(
+            district_norm, district_stats['global_mean_Meios_Terrestres']),
+        'district_median_single_incident': district_stats['district_median'].get(
+            district_norm, district_stats['global_median_ops']),
+        'district_T2_rate': district_stats['district_T2_rate'].get(
+            district_norm, district_stats['global_T2_rate']),
+    }
+
+
 def run_pipeline():
-    print("--- STARTING PIPELINE (HYBRID & ADAPTIVE) ---")
+    print("--- STARTING PIPELINE (TIER MODEL) ---")
     print(f"-> BASE DIRECTORY: {SCRIPT_DIR}")
     print(f"-> OUTPUT JSON AT: {JSON_OUTPUT_FILE}")
 
-    # A. Load Model
+    # A. Load the dissertation tier bundle (replaces the legacy 'lite' regressor).
     try:
-        model = joblib.load(MODEL_FILE)
-        model_features = joblib.load(FEATURES_FILE)
-        print("-> Model 'Lite' loaded successfully.")
+        bundle = joblib.load(BUNDLE_FILE)
     except FileNotFoundError:
-        print(f"CRITICAL: Model file not found at {MODEL_FILE}")
+        print(f"CRITICAL: Tier bundle not found at {BUNDLE_FILE}")
         sys.exit(1)
+
+    FEATURES       = bundle['features']
+    tier_clf       = bundle['tier_clf']
+    aerial_clf     = bundle['aerial_clf']
+    aerial_reg     = bundle['aerial_reg']
+    aerial_thr     = float(bundle['aerial_best_thr'])
+    tier_ranges    = bundle['tier_ranges']
+    district_stats = bundle['district_stats']
+    print(f"-> Tier bundle loaded: version={bundle.get('version')} "
+          f"K_TIERS={bundle.get('K_TIERS')} features={len(FEATURES)} "
+          f"aerial_thr={aerial_thr}")
+
+    # A2. Feature-parity gate. If any feature the bundle expects cannot be built,
+    #     stop here rather than feed the model fabricated values.
+    _probe = build_feature_dict(
+        0.0, 0.0, datetime.datetime.now(), 20.0, 50.0, 10.0,
+        {'FWI': 0.0, 'DMC': 0.0, 'DC': 0.0, 'ISI': 0.0, 'BUI': 0.0},
+        0.0, 0.0, 0.0, 0, '', district_stats)
+    missing = [f for f in FEATURES if f not in _probe]
+    extra   = [k for k in _probe if k not in FEATURES]
+    if missing:
+        print(f"CRITICAL: feature parity FAILED -- cannot construct {missing}. "
+              f"Aborting without inventing values.")
+        sys.exit(1)
+    print(f"-> Feature parity OK: {len(FEATURES)}/{len(FEATURES)} buildable, "
+          f"0 missing (extras ignored: {extra or 'none'}).")
 
     # B. Build Fire List (Adaptive Expansion)
     collected_fires = []
-    seen_ids = set() 
-    
+    seen_ids = set()
+
     # 1. Active Fires
     print("-> 1. Checking Active Fires (new/fires)...")
     try:
@@ -329,16 +412,15 @@ def run_pipeline():
         print(f"   Error checking active fires: {e}")
 
     # 2. Adaptive Backfill
-    days_window = 3 
+    days_window = 3
     max_days = 90
-    
+
     while len(collected_fires) < TOP_N_RECENT and days_window <= max_days:
         needed = TOP_N_RECENT - len(collected_fires)
         print(f"-> 2. Expanding Search: Checking last {days_window} days (Need {needed} more)...")
-        
+
         history_data = fetch_recent_history_v2(days_back=days_window)
-        
-        # Add NEW unique fires found in this window
+
         added_in_this_pass = 0
         for f in history_data:
             fid = f.get('id')
@@ -347,31 +429,29 @@ def run_pipeline():
                 collected_fires.append(f)
                 seen_ids.add(fid)
                 added_in_this_pass += 1
-        
+
         print(f"   Found {added_in_this_pass} new historic fires.")
-        
+
         if len(collected_fires) >= TOP_N_RECENT:
             break
-            
-        # Increase window size for next iteration (e.g., +7 days)
+
         days_window += 7
 
     # C. Date Parsing & Sorting
     valid_fires = []
     for f in collected_fires:
         time_str = f.get('hour') or f.get('time') or "00:00"
-        date_str = f.get('date') 
-        
+        date_str = f.get('date')
+
         try:
             full_dt_str = f"{date_str} {time_str}"
             dt_obj = datetime.datetime.strptime(full_dt_str, "%d-%m-%Y %H:%M")
-        except:
+        except Exception:
             dt_obj = datetime.datetime.now()
-            
+
         f['_dt_obj'] = dt_obj
         valid_fires.append(f)
 
-    # Sort descending
     valid_fires.sort(key=lambda x: x['_dt_obj'], reverse=True)
     target_fires = valid_fires[:TOP_N_RECENT]
 
@@ -379,160 +459,168 @@ def run_pipeline():
         print("-> No fires found even after expanding search.")
         return
 
+    # C2. Concurrent-fire counts within the collected batch: number of OTHER fires
+    #     in the same district on the same date (training feature definition,
+    #     scoped to the fetched batch).
+    batch_counts = Counter()
+    for f in target_fires:
+        batch_counts[(_norm_district(f.get('district') or f.get('distrito')),
+                      f['_dt_obj'].date())] += 1
+
     print(f"-> Processing Top {len(target_fires)} incidents...")
     processed_rows = []
+    skipped = []
 
-    # D. Enrichment Loop
+    # D. Enrichment Loop -- each incident isolated so one bad fire cannot abort the run.
     for i, fire in enumerate(target_fires):
+        fid = fire.get('id', f'idx-{i}')
         status = fire.get('status', 'Unknown')
-        print(f"   [{i+1}/{len(target_fires)}] Processing ID: {fire['id']}")
-        
+        print(f"   [{i+1}/{len(target_fires)}] Processing ID: {fid}")
+
         try:
             lat = float(fire['lat'])
             lon = float(fire['lng'])
-        except:
-            continue 
 
-        # Weather Strategy
-        is_active_status = any(s in status for s in ['Curso', 'Despacho', 'Ativo', 'Vigilância'])
-        use_realtime = fire.get('is_active_api', False) or is_active_status
+            # Weather strategy: realtime for active incidents, historical otherwise.
+            is_active_status = any(s in status for s in ['Curso', 'Despacho', 'Ativo', 'Vigilância'])
+            use_realtime = fire.get('is_active_api', False) or is_active_status
 
-        if use_realtime:
-            w_data = get_real_time_weather(lat, lon)
-        else:
-            w_data = get_historical_weather(lat, lon, fire['_dt_obj'])
+            if use_realtime:
+                w_data = get_real_time_weather(lat, lon)
+            else:
+                w_data = get_historical_weather(lat, lon, fire['_dt_obj'])
 
-        temp = w_data.get('TEMPERATURA', 20.0)
-        rh = w_data.get('HUMIDADERELATIVA', 50.0)
-        wind = w_data.get('VENTOINTENSIDADE', 10.0)
-        rain = w_data.get('CHUVA_24H', 0.0)
-        # NEW VARIABLES
-        wind_dir = w_data.get('DIRECAO_VENTO', 0.0)
-        pressure = w_data.get('PRESSAO', 1013.0)
+            temp = w_data.get('TEMPERATURA', 20.0)
+            rh = w_data.get('HUMIDADERELATIVA', 50.0)
+            wind = w_data.get('VENTOINTENSIDADE', 10.0)
+            rain = w_data.get('CHUVA_24H', 0.0)
+            wind_dir = w_data.get('DIRECAO_VENTO', 0.0)
+            pressure = w_data.get('PRESSAO', 1013.0)
 
-        # Calculate FWI codes
-        fwi_idx = calculate_fwi_codes(temp, rh, wind, rain, fire['_dt_obj'].month)
+            # FWI codes, fuel moisture, VPD.
+            fwi_idx = calculate_fwi_codes(temp, rh, wind, rain, fire['_dt_obj'].month)
+            fm = (fwi_idx['FFMC'] / 28.5) ** (1 / 0.281)
+            vpd = (0.6108 * math.exp((17.27 * temp) / (temp + 237.7))) * ((100.0 - rh) / 100.0)
 
-        # Calculate Fuel Moisture (FM) from FFMC per provided formula
-        fm = (fwi_idx['FFMC'] / 28.5) ** (1 / 0.281)
-        
-        # Calculate VPD (Vapor Pressure Deficit) in kPa
-        vpd = (0.6108 * math.exp((17.27 * temp) / (temp + 237.7))) * ((100.0 - rh) / 100.0)
-        
-        # Get elevation and estimate slope (default values if not available)
-        altitude = get_elevation(lat, lon)
-        declive = estimate_slope(lat, lon, distance_m=100)  # Estimate slope using elevation sampling #TODO: Replace with proper DEM-derived slope data from authoritative source
+            # Terrain.
+            altitude = get_elevation(lat, lon)
+            declive = estimate_slope(lat, lon, distance_m=100)
 
-        # Model input assembly
-        row_model = {
-            'LAT': lat, 'LON': lon,
-            'Mes': fire['_dt_obj'].month,
-            'Hora': fire['_dt_obj'].hour,
-            'TEMPERATURA': temp,
-            'HUMIDADERELATIVA': rh,
-            'VENTOINTENSIDADE': wind,
-            'FWI': fwi_idx['FWI'],
-            'DMC': fwi_idx['DMC'],
-            'DC': fwi_idx['DC'],
-            'ISI': fwi_idx['ISI'],
-            'BUI': fwi_idx['BUI'],
-            'FM': fm,
-            'VPD_kPa': vpd,
-            'ALTITUDEMEDIA': altitude,
-            'DECLIVEMEDIO': declive,
-            'FWI_Wind_Interaction': fwi_idx['FWI'] * wind,
-            'FM_Slope_Interaction': fm * declive
-        }
+            # District + concurrency.
+            district_norm = _norm_district(fire.get('district') or fire.get('distrito'))
+            n_concurrent = max(0, batch_counts[(district_norm, fire['_dt_obj'].date())] - 1)
 
-        # Extract nature category
-        natureza = fire.get('natureza', 'Desconhecido')
-        
-        df_single = pd.DataFrame([row_model])
-        for feature in model_features:
-            if feature.startswith('Natureza_'):
-                cat_name = feature.replace('Natureza_', '')
-                df_single[feature] = 1 if natureza == cat_name else 0
+            # Build the exact bundle feature vector.
+            feat = build_feature_dict(
+                lat, lon, fire['_dt_obj'], temp, rh, wind,
+                fwi_idx, fm, declive, altitude,
+                n_concurrent, district_norm, district_stats)
 
-        X_pred = pd.DataFrame()
-        for col in model_features:
-            X_pred[col] = df_single[col] if col in df_single.columns else 0.0
-        X_pred = X_pred[model_features]
+            row_missing = [ft for ft in FEATURES if ft not in feat]
+            if row_missing:
+                raise KeyError(f"missing features {row_missing}")
 
-        # Prediction
-        preds = model.predict(X_pred)
-        preds = np.maximum(preds, 0).round(0).astype(int)
+            X = pd.DataFrame([feat])[FEATURES]
 
-        real_aerial = fire.get('aerial') or fire.get('air') or 0
-        real_man = fire.get('man') or 0
-        real_terrain = fire.get('terrain') or 0
+            # Tier prediction (uncalibrated -- dissertation operational config).
+            tier = int(tier_clf.predict(X)[0])
+            rng = tier_ranges[tier]
 
-        final_row = {
-            'id': fire['id'],
-            'data': fire.get('date'),
-            'hora': fire.get('time') or fire.get('hour'),
-            'status': status,
-            'local': fire.get('location', fire.get('concelho', '')),
-            'lat': lat, 'lon': lon,
-            
-            # Complete Weather Data
-            'temp': round(temp, 1),
-            'humidade': round(rh, 0),
-            'vento': round(wind, 1),
-            'chuva_24h': round(rain, 1),         # NEW
-            'direcao_vento': round(wind_dir, 0), # NEW
-            'pressao': round(pressure, 1),       # NEW
-            
-            'fwi': fwi_idx['FWI'],
-            'isi': fwi_idx['ISI'],
-            'vpd_kpa': round(vpd, 2),
-            
-            # Predictions
-            'Prev_Homens': int(preds[0][0]),
-            'Prev_Terrestres': int(preds[0][1]),
-            'Prev_Aereos': int(preds[0][2]),
-            
-            # Actuals
-            'Real_Homens': int(real_man),
-            'Real_Terrestres': int(real_terrain),
-            'Real_Aereos': int(real_aerial),
-            
-            # Extras
-            'natureza': natureza,
-            'altitude': altitude
-        }
-        processed_rows.append(final_row)
+            # Two-stage aerial: activation probability vs threshold, then count.
+            aerial_prob = float(aerial_clf.predict_proba(X)[0][1])
+            if aerial_prob >= aerial_thr:
+                aerial_expected = max(1, int(round(float(aerial_reg.predict(X)[0]))))
+            else:
+                aerial_expected = None
 
-    if processed_rows:
-        df_out = pd.DataFrame(processed_rows)
-        
-        # Sorting
-        df_out['temp_sort_dt'] = pd.to_datetime(
-            df_out['data'] + ' ' + df_out['hora'], 
-            format='%d-%m-%Y %H:%M', 
-            errors='coerce'
-        )
-        df_out = df_out.sort_values(by='temp_sort_dt', ascending=False)
-        df_out = df_out.drop(columns=['temp_sort_dt'])
-        
-        # 1. Save CSV locally
-        df_out.to_csv(OUTPUT_FILE, index=False)
-        print(f"-> SUCCESS: CSV saved to '{OUTPUT_FILE}'.")
-        
-        # 2. Convert to JSON (Frontend)
-        if c2j:
-            print("-> Calling CSV to JSON converter...")
-            os.makedirs(os.path.dirname(JSON_OUTPUT_FILE), exist_ok=True)
-            c2j.csv_to_json(
-                csv_file=OUTPUT_FILE, 
-                output_file=JSON_OUTPUT_FILE, 
-                pretty=True, 
-                id_columns=['id']
-            )
-        else:
-            print("-> Skipped JSON conversion (Module missing).")
-            
-    else:
+            natureza = fire.get('natureza', 'Desconhecido')
+            real_aerial = fire.get('aerial') or fire.get('air') or 0
+            real_man = fire.get('man') or 0
+            real_terrain = fire.get('terrain') or 0
+
+            final_row = {
+                'id': fire['id'],
+                'data': fire.get('date'),
+                'hora': fire.get('time') or fire.get('hour'),
+                'status': status,
+                'local': fire.get('location', fire.get('concelho', '')),
+                'lat': lat, 'lng': lon,
+
+                # Complete weather data (kept for AlertDetails; resolves prior N/A).
+                'temp': round(temp, 1),
+                'humidade': round(rh, 0),
+                'vento': round(wind, 1),
+                'chuva_24h': round(rain, 1),
+                'direcao_vento': round(wind_dir, 0),
+                'pressao': round(pressure, 1),
+                'fwi': fwi_idx['FWI'],
+                'isi': fwi_idx['ISI'],
+                'vpd_kpa': round(vpd, 2),
+
+                # Tier-based forecast (replaces Prev_Homens/Terrestres/Aereos).
+                'tier': tier,
+                'tier_label': TIER_LABELS[tier],
+                'ops_range': _range_str(rng, 'ops_min', 'ops_max'),
+                'veh_range': _range_str(rng, 'veh_min', 'veh_max'),
+                'aerial_prob': round(aerial_prob, 2),
+                'aerial_expected': aerial_expected,
+
+                # Actuals (kept for the dashboard's real-resource display).
+                'Real_Homens': int(real_man),
+                'Real_Terrestres': int(real_terrain),
+                'Real_Aereos': int(real_aerial),
+
+                # Extras.
+                'natureza': natureza,
+                'altitude': altitude,
+            }
+            processed_rows.append(final_row)
+
+        except Exception as e:
+            skipped.append({'id': fid, 'error': f"{type(e).__name__}: {e}"})
+            print(f"      !! SKIPPED fire {fid}: {type(e).__name__}: {e}")
+            continue
+
+    # E. Report and persist.
+    n_proc = len(processed_rows)
+    n_skip = len(skipped)
+    print(f"-> Done: processed {n_proc} / {n_proc + n_skip} incidents ({n_skip} skipped).")
+    if skipped:
+        print("   Skipped detail:")
+        for s in skipped:
+            print(f"     - {s['id']}: {s['error']}")
+
+    if not processed_rows:
         print("-> No data processed.")
+        return
+
+    # Sort newest -> oldest (Python list -> exact types preserved for JSON).
+    def _sort_key(r):
+        try:
+            return datetime.datetime.strptime(f"{r['data']} {r['hora']}", "%d-%m-%Y %H:%M")
+        except Exception:
+            return datetime.datetime.min
+    processed_rows.sort(key=_sort_key, reverse=True)
+
+    # 1. Local CSV artifact.
+    pd.DataFrame(processed_rows).to_csv(OUTPUT_FILE, index=False)
+    print(f"-> SUCCESS: CSV saved to '{OUTPUT_FILE}'.")
+
+    # 2. fires.json for the frontend. Written directly (not via csv_to_json) so that
+    #    aerial_expected stays a clean int|null and the schema is emitted exactly.
+    def _json_safe(v):
+        if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+            return None
+        return v
+    records = [{k: _json_safe(v) for k, v in row.items()} for row in processed_rows]
+    for r in records:
+        r['id'] = None if r.get('id') is None else str(r['id'])
+    os.makedirs(os.path.dirname(JSON_OUTPUT_FILE), exist_ok=True)
+    with open(JSON_OUTPUT_FILE, 'w', encoding='utf-8') as fh:
+        json.dump(records, fh, indent=2, ensure_ascii=False)
+    print(f"-> SUCCESS: fires.json ({len(records)} records, tier schema) "
+          f"saved to '{JSON_OUTPUT_FILE}'.")
+
 
 if __name__ == "__main__":
     run_pipeline()

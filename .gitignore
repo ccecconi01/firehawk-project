@@ -28,6 +28,10 @@ Thumbs.db
 pnpm-debug.log*
 lerna-debug.log*
 
+# Python caches
+__pycache__/
+*.pyc
+
 # IDE configurations
 .vscode/*
 !.vscode/extensions.json

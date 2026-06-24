@@ -120,8 +120,11 @@ for k in K_RANGE:
     silhouettes_y.append(sil)
     print(f"  K={k}: inertia={km.inertia_:.0f}  silhouette={sil:.4f}")
 
-best_k_y = list(K_RANGE)[int(np.argmax(silhouettes_y))]
-print(f"Best K (targets): {best_k_y}  (silhouette={max(silhouettes_y):.4f})")
+silhouette_k_y = list(K_RANGE)[int(np.argmax(silhouettes_y))]   # metric optimum (silhouette)
+ADOPTED_K_Y    = 3                                              # adopted for operational interpretability (3 response tiers)
+print(f"Silhouette-optimal K (targets): {silhouette_k_y}  (silhouette={max(silhouettes_y):.4f})")
+print(f"Adopted K (targets): {ADOPTED_K_Y}  (operational interpretability — minimal/standard/reinforced)")
+best_k_y = ADOPTED_K_Y   # downstream clustering, scatter and box plots use the adopted k
 
 km_y_final = KMeans(n_clusters=best_k_y, init='k-means++', n_init=20, random_state=42)
 labels_y = km_y_final.fit_predict(y_log_scaled)
@@ -223,7 +226,8 @@ fig2, axes2 = plt.subplots(2, 2, figsize=(16, 14))
 # [0,0] Elbow curve
 ax = axes2[0, 0]
 ax.plot(list(K_RANGE), inertias_y, 'o-', color='darkorange')
-ax.axvline(best_k_y, color='red', linestyle='--', alpha=0.7, label=f'Best K={best_k_y}')
+ax.axvline(silhouette_k_y, color='gray', linestyle=':', alpha=0.7, label=f'Silhouette max K={silhouette_k_y}')
+ax.axvline(best_k_y, color='green', linestyle='--', alpha=0.85, label=f'Adopted K={best_k_y}')
 ax.set_title('Elbow Curve — Target Space')
 ax.set_xlabel('K')
 ax.set_ylabel('Inertia')
@@ -232,7 +236,8 @@ ax.legend()
 # [0,1] Silhouette scores
 ax = axes2[0, 1]
 ax.plot(list(K_RANGE), silhouettes_y, 's-', color='tomato')
-ax.axvline(best_k_y, color='red', linestyle='--', alpha=0.7, label=f'Best K={best_k_y}')
+ax.axvline(silhouette_k_y, color='gray', linestyle=':', alpha=0.7, label=f'Silhouette max K={silhouette_k_y}')
+ax.axvline(best_k_y, color='green', linestyle='--', alpha=0.85, label=f'Adopted K={best_k_y}')
 ax.set_title('Silhouette Score — Target Space')
 ax.set_xlabel('K')
 ax.set_ylabel('Silhouette Score')

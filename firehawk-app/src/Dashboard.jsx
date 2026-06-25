@@ -100,7 +100,7 @@ export default function Dashboard({ userData, onLogout }) {
 
   // Listing controls (page state — React state only, not localStorage)
   const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState('all');
+  const [statusFilters, setStatusFilters] = useState([]); // empty = all statuses (multi-select)
   const [search, setSearch] = useState('');
 
   /**
@@ -161,11 +161,11 @@ export default function Dashboard({ userData, onLogout }) {
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return allRows.filter((r) => {
-      const matchesStatus = statusFilter === 'all' || r.status === statusFilter;
+      const matchesStatus = statusFilters.length === 0 || statusFilters.includes(r.status);
       const matchesSearch = !q || (r.location || '').toLowerCase().includes(q);
       return matchesStatus && matchesSearch;
     });
-  }, [allRows, statusFilter, search]);
+  }, [allRows, statusFilters, search]);
 
   // Pagination math (clamp page into range so filters can't strand it).
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
@@ -252,17 +252,33 @@ export default function Dashboard({ userData, onLogout }) {
                 className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-700 placeholder-gray-400 shadow-sm focus:border-red-300 focus:outline-none focus:ring-2 focus:ring-red-200"
               />
             </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-              className="rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-8 text-sm text-gray-700 shadow-sm focus:border-red-300 focus:outline-none focus:ring-2 focus:ring-red-200"
-              aria-label="Filter by status"
-            >
-              <option value="all">All statuses</option>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1" role="group" aria-label="Filter by status">
               {statusOptions.map((s) => (
-                <option key={s} value={s}>{s}</option>
+                <label key={s} className="flex items-center gap-1.5 text-sm text-gray-700 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={statusFilters.includes(s)}
+                    onChange={() => {
+                      setStatusFilters((prev) =>
+                        prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
+                      );
+                      setPage(1);
+                    }}
+                    className="h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                  />
+                  {s}
+                </label>
               ))}
-            </select>
+              {statusFilters.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setStatusFilters([]); setPage(1); }}
+                  className="text-xs text-gray-500 underline hover:text-gray-700"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
             <span className="ml-auto text-xs font-medium text-gray-500">
               {filteredRows.length} incident{filteredRows.length === 1 ? '' : 's'}
             </span>
@@ -391,3 +407,4 @@ export default function Dashboard({ userData, onLogout }) {
     </div>
   );
 }
+

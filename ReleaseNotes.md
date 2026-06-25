@@ -1,4 +1,20 @@
 Firehawk Project - Release Notes
+
+Version: v2.1 (Scheduled Refresh & Persistent Snapshot) Date: June 25, 2026 Deployment Target: Railway PaaS / Local Hybrid Environment
+
+🦅 Overview
+Release v2.1 decouples data collection from request serving. The incident pipeline now runs on an in-app schedule and persists its snapshot to a Railway Volume, so the dashboard no longer depends on a synchronous run at click time and survives restarts/redeploys.
+
+✨ Changes
+- In-App Scheduler: server.py runs run_pipeline() via an APScheduler BackgroundScheduler on REFRESH_CRON (default "0 6,12,18,0 * * *", UTC), with max_instances=1 and coalesce=True. A refresh also runs once on boot when the snapshot is missing or older than STARTUP_MAX_AGE_HOURS (default 6h).
+- Persistent Snapshot (DATA_DIR): pipeline_active.py writes fires.json to DATA_DIR (default "/data") when that directory exists, and server.py serves /data/fires.json from it. On an empty volume the snapshot is seeded from the built dist/data/fires.json so the UI renders immediately.
+- Shared Anti-Overlap Guard: POST /api/refresh-data stays as a manual trigger and shares the scheduler's lock; concurrent triggers return HTTP 409 instead of running the pipeline twice.
+- No changes to the frontend build or the Dockerfile CMD.
+
+Configuration: see README ("Data refresh & persistence") for DATA_DIR, REFRESH_CRON, STARTUP_MAX_AGE_HOURS. Railway: attach a Volume mounted at /data and set DATA_DIR=/data.
+
+---
+
 Version: v2.0 (Production Release) Date: January 4, 2026 Deployment Target: Railway PaaS / Local Hybrid Environment
 
 🦅 Overview
@@ -54,9 +70,9 @@ VPD & Pressure Visibility: Corrected the data transformation layer to ensure vpd
 404 Routing Error: Patched server.py to handle non-API requests by serving the static entry point, fixing the "Not Found" error when refreshing deep links.
 
 ⚠️ Known Limitations
-Ephemeral Storage (Railway):
+Ephemeral Storage (Railway): [RESOLVED in v2.1]
 
-While the pipeline now writes to the correct folder, the filesystem on Railway is ephemeral. If the deployment restarts, the fires.json file may revert to the build-time version until "Update Incidents" is triggered manually via the dashboard.
+While the pipeline now writes to the correct folder, the filesystem on Railway is ephemeral. If the deployment restarts, the fires.json file may revert to the build-time version until "Update Incidents" is triggered manually via the dashboard. (v2.1 resolves this by persisting fires.json to a Railway Volume at DATA_DIR and refreshing on a schedule.)
 
 Slope Approximation:
 

@@ -65,7 +65,7 @@ def resolve_json_output_file():
 # Initial resolution for logging; run_pipeline() re-resolves at call time.
 JSON_OUTPUT_FILE = resolve_json_output_file()
 
-TOP_N_RECENT = 30
+TOP_N_RECENT = 50
 
 # ==========================================
 # 1. SCIENTIFIC FWI CALCULATION ENGINE

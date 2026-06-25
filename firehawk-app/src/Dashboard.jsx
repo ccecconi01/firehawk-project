@@ -1,39 +1,40 @@
-// Dashboard.jsx
 
+// Dashboard.jsx
+ 
 // React hooks:
 // - useState: stores local component state (modal open, data arrays, loading flag)
 // - useEffect: runs side-effects (fetching fires.json on mount)
 // - useMemo: derives filtered/paginated views without recomputing on every render
 import { useState, useEffect, useMemo } from 'react';
-
+ 
 // Config with API URLs
 import config from './config';
-
+ 
 // React Router:
 // - useNavigate: programmatic navigation when clicking a row (go to /alert/:id)
 import { useNavigate } from 'react-router-dom';
-
+ 
 // React-Leaflet components for the map UI
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet'; import 'leaflet/dist/leaflet.css'; import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'; import markerIcon from 'leaflet/dist/images/marker-icon.png'; import markerShadow from 'leaflet/dist/images/marker-shadow.png';
-
+ 
 // Local components + styling
 import ProfileModal from './ProfileModal';
 import './Dashboard.css';
-
+ 
 // Helper that normalizes raw JSON into the shape your UI expects
 import { transformFireData } from './dataTransforms';
-
+ 
 // Brand-red Leaflet marker (shared with AlertDetails)
 import { redPinIcon } from './redPin';
-
+ 
 // Fix Leaflet's missing icon issue by setting default icon paths (module scope: run once)
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({ iconRetinaUrl: markerIcon2x, iconUrl: markerIcon, shadowUrl: markerShadow });
-
+ 
 // How many incidents to show per page (kept in the 10-15 range requested).
 const PAGE_SIZE = 12;
-
+ 
 /**
  * Parse a "DD/MM/YYYY, HH:MM" (or with '-') string into a sortable timestamp.
  * Returns 0 when it cannot be parsed so those rows sort to the end.
@@ -47,14 +48,14 @@ function parseDateTime(value) {
   const d = new Date(year, month - 1, day, hour, minute);
   return isNaN(d.getTime()) ? 0 : d.getTime();
 }
-
+ 
 /** Sort transformed rows newest -> oldest by lastlyUpdated. */
 function sortByDateDesc(rows) {
   return [...rows].sort(
     (a, b) => parseDateTime(b.lastlyUpdated) - parseDateTime(a.lastlyUpdated)
   );
 }
-
+ 
 /**
  * Map an incident status string to SUBTLE Tailwind badge classes
  * (soft tinted background, no ring) — kept light so the table stays compact.
@@ -73,7 +74,7 @@ function statusBadgeClass(status) {
     return 'bg-gray-100 text-gray-500';
   return 'bg-slate-50 text-slate-500';
 }
-
+ 
 /** Compact real-resource summary, e.g. "5 ops · 1 veh · 0 air". */
 function realResourcesText(od) {
   const man = Number(od?.man ?? od?.Real_Homens ?? 0) || 0;
@@ -81,28 +82,28 @@ function realResourcesText(od) {
   const air = Number(od?.heliFight ?? od?.Real_Aereos ?? 0) || 0;
   return `${man} ops · ${veh} veh · ${air} air`;
 }
-
+ 
 export default function Dashboard({ userData, onLogout }) {
   // Router navigation function
   const navigate = useNavigate();
-
+ 
   // UI state: profile modal visibility
   const [showProfileModal, setShowProfileModal] = useState(false);
-
+ 
   // Full, date-sorted dataset (the table paginates/filters over this in memory).
   const [allRows, setAllRows] = useState([]);
-
+ 
   // Loading state for the initial fetch
   const [loading, setLoading] = useState(true);
-
+ 
   // Refreshing state (Update Incidents button)
   const [isRefreshing, setIsRefreshing] = useState(false);
-
+ 
   // Listing controls (page state — React state only, not localStorage)
   const [page, setPage] = useState(1);
   const [statusFilters, setStatusFilters] = useState([]); // empty = all statuses (multi-select)
   const [search, setSearch] = useState('');
-
+ 
   /**
    * Fetch the local JSON once on mount: transform -> sort by date desc ->
    * keep the FULL list in state (pagination happens in render).
@@ -122,41 +123,69 @@ export default function Dashboard({ userData, onLogout }) {
         setLoading(false);
       });
   }, []); // run once
-
+ 
   const handleLogout = () => {
     if (onLogout) onLogout();
   };
-
+ 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
+      // Snapshot current data so we can detect when the background run finishes.
+      const before = await (await fetch(`/data/fires.json?t=${Date.now()}`)).text();
+ 
+      // Kick off the refresh. The backend returns immediately (202) and runs the
+      // pipeline in the background, so this request no longer blocks/times out.
       const response = await fetch(`${config.DATA_API}/api/refresh-data`, { method: 'POST' });
-      const result = await response.json();
-
-      if (result.success) {
-        // Reload the local fires.json (timestamp busts the browser cache)
-        const res = await fetch(`/data/fires.json?t=${Date.now()}`);
-        const data = await res.json();
-        setAllRows(sortByDateDesc(transformFireData(data)));
-        setPage(1); // back to the first page after a refresh
-      } else {
-        alert('Server Error: ' + result.error);
+      const result = await response.json().catch(() => ({}));
+ 
+      if (response.status === 409) {
+        alert('Uma atualização já está a decorrer. Tenta novamente daqui a pouco.');
+        setIsRefreshing(false);
+        return;
       }
+      if (!result.success) {
+        alert('Server Error: ' + (result.error || 'unknown'));
+        setIsRefreshing(false);
+        return;
+      }
+ 
+      // Background run started: poll the snapshot until it changes (or time out).
+      const startedAt = Date.now();
+      const MAX_MS = 5 * 60 * 1000; // drop the spinner after 5 minutes
+      const poll = async () => {
+        try {
+          const txt = await (await fetch(`/data/fires.json?t=${Date.now()}`)).text();
+          if (txt !== before) {
+            setAllRows(sortByDateDesc(transformFireData(JSON.parse(txt))));
+            setPage(1);
+            setIsRefreshing(false);
+            return;
+          }
+        } catch (e) {
+          // ignore transient errors while the snapshot is being rewritten
+        }
+        if (Date.now() - startedAt > MAX_MS) {
+          setIsRefreshing(false);
+          return;
+        }
+        setTimeout(poll, 15000);
+      };
+      setTimeout(poll, 15000);
     } catch (error) {
       console.error(error);
       alert('Error connecting to server.');
-    } finally {
       setIsRefreshing(false);
     }
   };
-
+ 
   // Distinct statuses present in the data, for the filter dropdown.
   const statusOptions = useMemo(() => {
     const set = new Set();
     allRows.forEach((r) => r.status && set.add(r.status));
     return Array.from(set).sort();
   }, [allRows]);
-
+ 
   // Apply status filter + free-text location search.
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -166,13 +195,13 @@ export default function Dashboard({ userData, onLogout }) {
       return matchesStatus && matchesSearch;
     });
   }, [allRows, statusFilters, search]);
-
+ 
   // Pagination math (clamp page into range so filters can't strand it).
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
   const startIdx = (safePage - 1) * PAGE_SIZE;
   const pageRows = filteredRows.slice(startIdx, startIdx + PAGE_SIZE);
-
+ 
   // Markers reflect the CURRENT PAGE (keeps the map in sync with the table you see),
   // excluding completed incidents and rows without valid coordinates.
   const markerRows = pageRows.filter(
@@ -183,15 +212,15 @@ export default function Dashboard({ userData, onLogout }) {
       row.status &&
       row.status.toLowerCase() !== 'conclusão'
   );
-
+ 
   // While data is loading, render a simple placeholder
   if (loading) {
     return <div className="dashboard-container">Loading data...</div>;
   }
-
+ 
   const rangeFrom = filteredRows.length === 0 ? 0 : startIdx + 1;
   const rangeTo = startIdx + pageRows.length;
-
+ 
   return (
     <div className="dashboard-container">
       {/* Header area: brand + profile button */}
@@ -206,7 +235,7 @@ export default function Dashboard({ userData, onLogout }) {
             draggable="false"
           />
         </div>
-
+ 
         {/* Profile button on the right */}
         <div className="header-right">
           <button
@@ -235,7 +264,7 @@ export default function Dashboard({ userData, onLogout }) {
           </button>
         </div>
       </header>
-
+ 
       {/* Main content layout: table (left) + map (right) */}
       <div className="dashboard-content">
         {/* Left side: paginated, filterable incident list */}
@@ -283,7 +312,7 @@ export default function Dashboard({ userData, onLogout }) {
               {filteredRows.length} incident{filteredRows.length === 1 ? '' : 's'}
             </span>
           </div>
-
+ 
           {/* Scrollable table with a sticky header */}
           <div className="flex-1 overflow-y-auto">
             <table className="w-full border-collapse text-sm">
@@ -316,7 +345,7 @@ export default function Dashboard({ userData, onLogout }) {
                     </td>
                   </tr>
                 ))}
-
+ 
                 {pageRows.length === 0 && (
                   <tr>
                     <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-400">
@@ -327,7 +356,7 @@ export default function Dashboard({ userData, onLogout }) {
               </tbody>
             </table>
           </div>
-
+ 
           {/* Pagination footer */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 bg-white/60 px-4 py-3">
             <span className="text-xs text-gray-500">
@@ -354,7 +383,7 @@ export default function Dashboard({ userData, onLogout }) {
             </div>
           </div>
         </div>
-
+ 
         {/* Right side: map showing markers for the current page */}
         <div className="map-section">
           <MapContainer
@@ -366,7 +395,7 @@ export default function Dashboard({ userData, onLogout }) {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             />
-
+ 
             {markerRows.map((row) => (
               <Marker
                 key={row.originalId}
@@ -389,7 +418,7 @@ export default function Dashboard({ userData, onLogout }) {
           </MapContainer>
         </div>
       </div>
-
+ 
       {/* Profile modal: shown only when showProfileModal is true */}
       {showProfileModal && (
         <ProfileModal
@@ -399,7 +428,7 @@ export default function Dashboard({ userData, onLogout }) {
           onLogout={handleLogout}
         />
       )}
-
+ 
       {/* Footer: shows current mode based on userType */}
       <footer className="dashboard-footer">
         <p>Mode : {userData?.userType === 'viewer' ? 'Viewer' : 'Operator'}</p>
@@ -407,4 +436,3 @@ export default function Dashboard({ userData, onLogout }) {
     </div>
   );
 }
-

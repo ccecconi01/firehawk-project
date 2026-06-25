@@ -6,8 +6,36 @@ import 'leaflet/dist/leaflet.css';
 import jsPDF from 'jspdf';
 
 import { transformFireData, TIER_LABELS, formatAerial } from './dataTransforms';
+import { redPinIcon } from './redPin';
 import ProfileModal from './ProfileModal';
 import './AlertDetails.css';
+
+/** Tier badge classes — T0 green, T1 amber, T2 red. */
+function tierBadgeClass(tier) {
+  if (tier === 0) return 'bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200';
+  if (tier === 1) return 'bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200';
+  if (tier === 2) return 'bg-red-100 text-red-700 ring-1 ring-inset ring-red-200';
+  return 'bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200';
+}
+
+/**
+ * Gap between a REAL value and the predicted tier RANGE ("lo–hi").
+ * Within the bracket -> "within expected"; otherwise the signed distance to the
+ * nearest edge ("+3 above" / "−3 below"). The forecast is a range, so this is the
+ * gap to the range, not a point-to-point subtraction.
+ */
+function rangeGap(real, rangeStr) {
+  if (real == null || !rangeStr || rangeStr === 'N/A')
+    return { text: 'N/A', cls: 'text-gray-400' };
+  const parts = String(rangeStr).split(/[–—-]/).map((s) => Number(s.trim()));
+  if (parts.length < 2 || parts.some(Number.isNaN))
+    return { text: 'N/A', cls: 'text-gray-400' };
+  const [lo, hi] = parts;
+  const r = Number(real);
+  if (r < lo) return { text: `−${lo - r} below`, cls: 'text-amber-600' };
+  if (r > hi) return { text: `+${r - hi} above`, cls: 'text-red-600' };
+  return { text: 'within expected', cls: 'text-emerald-600' };
+}
 
 export default function AlertDetails({ userData, onLogout }) {
   const { alertId } = useParams();
@@ -143,6 +171,12 @@ export default function AlertDetails({ userData, onLogout }) {
     aerial: formatAerial(od.aerial_prob ?? null, od.aerial_expected ?? null),
   };
 
+  // Expected (range) vs Real gap, for operatives and vehicles.
+  const realOps = Number(od.man ?? od.Real_Homens ?? 0) || 0;
+  const realVeh = Number(od.terrain ?? od.Real_Terrestres ?? 0) || 0;
+  const opsGap = rangeGap(realOps, predForecast.opsRange);
+  const vehGap = rangeGap(realVeh, predForecast.vehRange);
+
   // --------- PDF GENERATION ----------
   const handleGenerateReport = () => {
     if (!alertData) return;
@@ -215,6 +249,14 @@ export default function AlertDetails({ userData, onLogout }) {
     addLine(`Operatives (est.): ${predForecast.opsRange}`);
     addLine(`Vehicles (est.): ${predForecast.vehRange}`);
     addLine(`Aerial support: ${predForecast.aerial}`);
+    y += 3;
+
+    // Expected vs Real (− rendered as - for the PDF font)
+    doc.setFontSize(13);
+    addLine(`Expected vs Real`);
+    doc.setFontSize(11);
+    addLine(`Operatives: ${realOps} real vs ${predForecast.opsRange} expected (${opsGap.text.replace('−', '-')})`);
+    addLine(`Vehicles: ${realVeh} real vs ${predForecast.vehRange} expected (${vehGap.text.replace('−', '-')})`);
     y += 3;
 
     // Save file
@@ -291,7 +333,7 @@ export default function AlertDetails({ userData, onLogout }) {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             />
-            <Marker position={[lat, lng]}>
+            <Marker position={[lat, lng]} icon={redPinIcon}>
               <Popup>
                 {alertData.location}
                 <br />
@@ -325,13 +367,33 @@ export default function AlertDetails({ userData, onLogout }) {
 
           {/* Predicted Response (tier model) */}
           <div className="resources-box">
-            <h4>Predicted Response </h4>
+            <h4>Predicted Response</h4>
             <p>
-              Tier: {predForecast.tier != null ? `T${predForecast.tier} — ${predForecast.label}` : 'N/A'}
+              Tier:{' '}
+              {predForecast.tier != null ? (
+                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${tierBadgeClass(predForecast.tier)}`}>
+                  T{predForecast.tier} · {predForecast.label}
+                </span>
+              ) : (
+                'N/A'
+              )}
             </p>
             <p>Operatives (est.): {predForecast.opsRange}</p>
             <p>Vehicles (est.): {predForecast.vehRange}</p>
             <p>Aerial support: {predForecast.aerial}</p>
+          </div>
+
+          {/* Expected (range) vs Real */}
+          <div className="resources-box">
+            <h4>Expected vs Real</h4>
+            <p>
+              Operatives: <strong>{realOps}</strong> real vs {predForecast.opsRange} expected{' '}
+              <span className={`font-semibold ${opsGap.cls}`}>({opsGap.text})</span>
+            </p>
+            <p>
+              Vehicles: <strong>{realVeh}</strong> real vs {predForecast.vehRange} expected{' '}
+              <span className={`font-semibold ${vehGap.cls}`}>({vehGap.text})</span>
+            </p>
           </div>
         </div>
       </div>

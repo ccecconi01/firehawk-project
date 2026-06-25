@@ -39,4 +39,23 @@ DATA_DIR=./_vol python server.py
 ### Railway (project: mindful-perfection)
 
 Attach a Volume mounted at **`/data`** and set `DATA_DIR=/data` (plus optionally
-`REFRESH_CRON`). No Dockerfile/CMD or frontend-build changes are required.
+`REFRESH_CRON`). No frontend-build or CMD changes are required.
+
+### Model artifact (Git LFS) on Railway
+
+The model bundle `AI_FirehawkLab/model_tier_pipeline.pkl` (~135 MB, exceeds GitHub's
+100 MB blob limit) is stored via **Git LFS**. Railway's checkout leaves an LFS
+**pointer** (134-byte text file) in the build context; `joblib.load()` on a pointer
+fails with `KeyError: 118` (the pointer text starts with `v` = byte 118). To avoid
+this, the `Dockerfile` installs `git-lfs` and runs `git lfs pull` during the build,
+then verifies the file is a real binary and loads. The build **fails fast** if the
+model is still a pointer, so a broken image is never shipped.
+
+**Requirements for the build-time LFS pull:** the `.git` directory must be in the
+build context (it is — there is no `.dockerignore`) and the LFS remote must be
+reachable (public repo, or credentials carried by Railway's clone for a private one).
+
+**Fallback (if Railway cannot pull LFS):** publish `model_tier_pipeline.pkl` as a
+GitHub **Release asset** (served from a plain URL, no LFS) and download it on boot
+into `DATA_DIR` (cached on the Volume), loading from there. This removes the build's
+dependency on Railway's LFS support. Not enabled by default.

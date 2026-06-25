@@ -22,7 +22,10 @@ import ProfileModal from './ProfileModal';
 import './Dashboard.css';
 
 // Helper that normalizes raw JSON into the shape your UI expects
-import { transformFireData, formatAerial } from './dataTransforms';
+import { transformFireData } from './dataTransforms';
+
+// Brand-red Leaflet marker (shared with AlertDetails)
+import { redPinIcon } from './redPin';
 
 // Fix Leaflet's missing icon issue by setting default icon paths (module scope: run once)
 delete L.Icon.Default.prototype._getIconUrl;
@@ -53,32 +56,30 @@ function sortByDateDesc(rows) {
 }
 
 /**
- * Map an incident status string to Tailwind badge classes.
+ * Map an incident status string to SUBTLE Tailwind badge classes
+ * (soft tinted background, no ring) — kept light so the table stays compact.
  * Em Curso / Em Resolução / Ativo / Chegada -> red (active)
  * Despacho -> amber, Vigilância -> blue, Conclusão -> gray.
  */
 function statusBadgeClass(status) {
   const s = (status || '').toLowerCase();
   if (s.includes('curso') || s.includes('resolu') || s.includes('ativo') || s.includes('chegada'))
-    return 'bg-red-100 text-red-700 ring-1 ring-inset ring-red-200';
+    return 'bg-red-50 text-red-600';
   if (s.includes('despacho'))
-    return 'bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200';
+    return 'bg-amber-50 text-amber-700';
   if (s.includes('vigil'))
-    return 'bg-blue-100 text-blue-700 ring-1 ring-inset ring-blue-200';
+    return 'bg-blue-50 text-blue-600';
   if (s.includes('conclus'))
-    return 'bg-gray-100 text-gray-500 ring-1 ring-inset ring-gray-200';
-  return 'bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200';
+    return 'bg-gray-100 text-gray-500';
+  return 'bg-slate-50 text-slate-500';
 }
 
-/**
- * Tier badge classes — distinct from status colors.
- * T0 Minimal=green, T1 Standard=amber, T2 Reinforced=red.
- */
-function tierBadgeClass(tier) {
-  if (tier === 0) return 'bg-emerald-100 text-emerald-700 ring-1 ring-inset ring-emerald-200';
-  if (tier === 1) return 'bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200';
-  if (tier === 2) return 'bg-red-100 text-red-700 ring-1 ring-inset ring-red-200';
-  return 'bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200';
+/** Compact real-resource summary, e.g. "5 ops · 1 veh · 0 air". */
+function realResourcesText(od) {
+  const man = Number(od?.man ?? od?.Real_Homens ?? 0) || 0;
+  const veh = Number(od?.terrain ?? od?.Real_Terrestres ?? 0) || 0;
+  const air = Number(od?.heliFight ?? od?.Real_Aereos ?? 0) || 0;
+  return `${man} ops · ${veh} veh · ${air} air`;
 }
 
 export default function Dashboard({ userData, onLogout }) {
@@ -271,12 +272,12 @@ export default function Dashboard({ userData, onLogout }) {
           <div className="flex-1 overflow-y-auto">
             <table className="w-full border-collapse text-sm">
               <thead className="sticky top-0 z-10">
-                <tr className="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 shadow-[inset_0_-1px_0_0_#e5e7eb]">
-                  <th className="px-4 py-3">ID</th>
-                  <th className="px-4 py-3">Lastly updated</th>
-                  <th className="px-4 py-3">Location</th>
-                  <th className="px-4 py-3">Expected response</th>
-                  <th className="px-4 py-3">Status</th>
+                <tr className="bg-gray-50 text-left text-[11px] font-semibold uppercase tracking-wide text-gray-500 shadow-[inset_0_-1px_0_0_#e5e7eb]">
+                  <th className="px-3 py-2">ID</th>
+                  <th className="px-3 py-2">Lastly updated</th>
+                  <th className="px-3 py-2">Location</th>
+                  <th className="px-3 py-2">Real Time Resources</th>
+                  <th className="px-3 py-2">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -286,31 +287,14 @@ export default function Dashboard({ userData, onLogout }) {
                     onClick={() => navigate(`/alert/${row.id}`)}
                     className="cursor-pointer border-b border-gray-100 odd:bg-white even:bg-gray-50/60 transition-colors hover:bg-red-50/70"
                   >
-                    <td className="px-4 py-3 font-mono text-xs text-gray-400">{row.id}</td>
-                    <td className="px-4 py-3 whitespace-nowrap text-gray-600">{row.lastlyUpdated}</td>
-                    <td className="px-4 py-3 font-medium text-gray-800">{row.location}</td>
-                    <td className="px-4 py-3">
-                      {row.tier != null ? (
-                        <div
-                          className="flex flex-col gap-0.5"
-                          title={`Operatives ${row.ops_range ?? '—'} · Vehicles ${row.veh_range ?? '—'}`}
-                        >
-                          <span className={`inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${tierBadgeClass(row.tier)}`}>
-                            T{row.tier} · {row.tier_label}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            ops {row.ops_range ?? '—'} · veh {row.veh_range ?? '—'}
-                          </span>
-                          <span className={`text-xs ${row.aerial_prob != null && row.aerial_prob >= 0.35 ? 'font-medium text-red-600' : 'text-gray-400'}`}>
-                            Aerial: {formatAerial(row.aerial_prob, row.aerial_expected)}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-400">N/A</span>
-                      )}
+                    <td className="px-3 py-1.5 font-mono text-xs text-gray-400">{row.id}</td>
+                    <td className="px-3 py-1.5 whitespace-nowrap text-gray-600">{row.lastlyUpdated}</td>
+                    <td className="px-3 py-1.5 font-medium text-gray-800">{row.location}</td>
+                    <td className="px-3 py-1.5 whitespace-nowrap text-xs text-gray-500">
+                      {realResourcesText(row.originalData)}
                     </td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadgeClass(row.status)}`}>
+                    <td className="px-3 py-1.5">
+                      <span className={`inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium ${statusBadgeClass(row.status)}`}>
                         {row.status}
                       </span>
                     </td>
@@ -371,6 +355,7 @@ export default function Dashboard({ userData, onLogout }) {
               <Marker
                 key={row.originalId}
                 position={[row.originalData.lat, row.originalData.lng]}
+                icon={redPinIcon}
               >
                 <Popup>
                   <strong>ID:</strong> {row.originalId}
@@ -379,8 +364,7 @@ export default function Dashboard({ userData, onLogout }) {
                   <br />
                   <strong>Location:</strong> {row.location}
                   <br />
-                  <strong>Response:</strong>{' '}
-                  {row.tier != null ? `T${row.tier} ${row.tier_label} (ops ${row.ops_range ?? '—'})` : 'N/A'}
+                  <strong>Resources:</strong> {realResourcesText(row.originalData)}
                   <br />
                   <strong>Status:</strong> {row.status}
                 </Popup>

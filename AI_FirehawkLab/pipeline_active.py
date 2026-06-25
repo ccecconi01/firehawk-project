@@ -42,13 +42,29 @@ TIER_LABELS = ['Minimal', 'Standard', 'Reinforced']
 DIST_PATH = os.path.normpath(os.path.join(SCRIPT_DIR, '..', 'firehawk-app', 'dist', 'data'))
 PUBLIC_PATH = os.path.normpath(os.path.join(SCRIPT_DIR, '..', 'firehawk-app', 'public', 'data'))
 
-if os.path.exists(DIST_PATH):
-    print(f"-> PRODUCTION MODE DETECTED: Saving JSON to 'dist' folder.")
-    JSON_OUTPUT_FILE = os.path.join(DIST_PATH, 'fires.json')
-else:
-    print(f"-> DEVELOPMENT MODE: Saving JSON to 'public' folder.")
-    JSON_OUTPUT_FILE = os.path.join(PUBLIC_PATH, 'fires.json')
-    
+# Persistent snapshot location. On Railway a Volume is mounted at DATA_DIR
+# (default "/data"); when that directory exists the snapshot is written there so it
+# survives restarts/redeploys (the disk is otherwise ephemeral). Falls back to the
+# built SPA folder (dist/data) in production-like runs, or public/data in dev.
+DATA_DIR = os.environ.get('DATA_DIR', '/data')
+
+
+def resolve_json_output_file():
+    """Where to write fires.json — re-evaluated at run time, not just at import.
+
+    Lets the server create/seed DATA_DIR after this module is imported and still
+    have the pipeline pick it up on the next run.
+    """
+    if os.path.isdir(DATA_DIR):
+        return os.path.join(DATA_DIR, 'fires.json')
+    if os.path.exists(DIST_PATH):
+        return os.path.join(DIST_PATH, 'fires.json')
+    return os.path.join(PUBLIC_PATH, 'fires.json')
+
+
+# Initial resolution for logging; run_pipeline() re-resolves at call time.
+JSON_OUTPUT_FILE = resolve_json_output_file()
+
 TOP_N_RECENT = 20
 
 # ==========================================
@@ -354,9 +370,10 @@ def build_feature_dict(lat, lon, dt_obj, temp, rh, wind,
 
 
 def run_pipeline():
+    json_output_file = resolve_json_output_file()
     print("--- STARTING PIPELINE (TIER MODEL) ---")
     print(f"-> BASE DIRECTORY: {SCRIPT_DIR}")
-    print(f"-> OUTPUT JSON AT: {JSON_OUTPUT_FILE}")
+    print(f"-> OUTPUT JSON AT: {json_output_file}")
 
     # A. Load the dissertation tier bundle (replaces the legacy 'lite' regressor).
     try:
@@ -615,11 +632,11 @@ def run_pipeline():
     records = [{k: _json_safe(v) for k, v in row.items()} for row in processed_rows]
     for r in records:
         r['id'] = None if r.get('id') is None else str(r['id'])
-    os.makedirs(os.path.dirname(JSON_OUTPUT_FILE), exist_ok=True)
-    with open(JSON_OUTPUT_FILE, 'w', encoding='utf-8') as fh:
+    os.makedirs(os.path.dirname(json_output_file), exist_ok=True)
+    with open(json_output_file, 'w', encoding='utf-8') as fh:
         json.dump(records, fh, indent=2, ensure_ascii=False)
     print(f"-> SUCCESS: fires.json ({len(records)} records, tier schema) "
-          f"saved to '{JSON_OUTPUT_FILE}'.")
+          f"saved to '{json_output_file}'.")
 
 
 if __name__ == "__main__":

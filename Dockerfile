@@ -4,35 +4,30 @@ FROM nikolaik/python-nodejs:python3.10-nodejs22
 # 2. Configure working folder
 WORKDIR /app
 
-# 2b. Install git-lfs. The base image has git but NOT git-lfs. It is required to
-#     materialise the model_*.pkl objects: Railway's checkout leaves Git LFS
-#     POINTERS (134-byte text files) in the build context, and joblib.load() on a
-#     pointer crashes with "KeyError: 118" (the pointer starts with 'v' = 0x76 = 118).
+# 2b. Ensure curl is available to fetch the model bundle (used in step 3b).
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git-lfs \
+    && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 3. Copy everything inside (includes .git so LFS can resolve/fetch its objects)
+# 3. Copy the application source. Railway's build context does NOT include .git, so
+#    `git lfs pull` is impossible here and the model_*.pkl files arrive as Git LFS
+#    POINTERS (134-byte text files); joblib.load() on a pointer crashes with
+#    "KeyError: 118" (the pointer starts with 'v' = 0x76 = 118). Replaced in 3b.
 COPY . .
 
-# 3b. Replace the LFS pointers with the real binaries.
-#     Requires .git in the build context (no .dockerignore, so it is present) and,
-#     for a PRIVATE repo, credentials on the cloned remote. If LFS cannot fetch,
-#     the size gate in 3c fails the build (the running container is kept by Railway).
-RUN git config --global --add safe.directory /app \
-    && git lfs install --local \
-    && git lfs pull \
-    && echo "== LFS files after pull ==" && git lfs ls-files
+# 3b. Download the real model bundle from GitHub's LFS media endpoint. The repo is
+#     public, so no authentication is required. This replaces `git lfs pull`.
+RUN curl -fL -o AI_FirehawkLab/model_tier_pipeline.pkl \
+      "https://media.githubusercontent.com/media/ccecconi01/firehawk-project/master/AI_FirehawkLab/model_tier_pipeline.pkl" \
+    && echo "model_tier_pipeline.pkl size: $(stat -c%s AI_FirehawkLab/model_tier_pipeline.pkl) bytes"
 
-# 3c. Fail fast if the model is still a pointer (LFS did not materialise) instead of
-#     shipping a broken image. See README for the runtime-download fallback.
+# 3c. Fail fast if the download did not return the real binary (wrong path/branch,
+#     repo turned private, or LFS object missing) instead of shipping a broken image.
 RUN PKL=AI_FirehawkLab/model_tier_pipeline.pkl; \
     SIZE=$(stat -c%s "$PKL"); \
-    echo "model_tier_pipeline.pkl size: ${SIZE} bytes"; \
     if [ "$SIZE" -lt 1000000 ]; then \
-      echo "ERROR: ${PKL} is still an LFS pointer (${SIZE} bytes) — Railway did not pull LFS."; \
-      echo "Ensure .git is in the build context and the LFS remote is reachable (auth for private repos),"; \
-      echo "or switch to the runtime model-download fallback documented in the README."; \
+      echo "ERROR: ${PKL} is only ${SIZE} bytes — model download failed."; \
+      echo "Verify the repo is public and the path/branch in the media URL are correct."; \
       exit 1; \
     fi
 

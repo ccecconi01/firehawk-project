@@ -1,5 +1,5 @@
 # Firehawk — Temporal Validation Results (v2)
-Generated: 2026-06-23
+Generated: 2026-06-27
 
 ---
 
@@ -33,10 +33,10 @@ Generated: 2026-06-23
 | Baseline A — majority class | 0.537 | 0.333 | 0.376 | 53.4% | 82.6% | 51.0% |
 | Baseline B — district x month | 0.510 | 0.348 | 0.401 | 50.7% | 78.6% | 48.6% |
 | Baseline C — random stratified | 0.398 | 0.336 | 0.397 | 39.6% | 67.9% | 38.0% |
-| RF Classifier (temporal split) | 0.485 | 0.404 | 0.477 | 48.2% | 72.0% | 46.5% |
-| XGBoost (benchmark) | 0.452 | 0.402 | 0.460 | 44.6% | 68.6% | 43.1% |
-| HistGradientBoosting (benchmark) | 0.433 | 0.409 | 0.449 | 42.8% | 66.3% | 41.3% |
-| RF + Isotonic Calibration (Val 2023) | 0.534 | 0.344 | 0.406 | 53.1% | 81.5% | 50.8% |
+| RF Classifier (temporal split) | 0.488 | 0.406 | 0.480 | 48.4% | 72.2% | 46.7% |
+| XGBoost (benchmark) | 0.460 | 0.412 | 0.468 | 45.6% | 69.3% | 44.1% |
+| HistGradientBoosting (benchmark) | 0.437 | 0.411 | 0.453 | 43.2% | 66.4% | 41.7% |
+| RF + Isotonic Calibration (Val 2023) | 0.533 | 0.342 | 0.402 | 53.0% | 81.5% | 50.7% |
 
 ---
 
@@ -46,17 +46,17 @@ Generated: 2026-06-23
 
 | Class | Description | Precision | Recall | F1-score | Support |
 | --- | --- | --- | --- | --- | --- |
-| T0 | Ops [1-3] | 0.375 | 0.255 | 0.303 | 2404 |
-| T1 | Ops [4-7] | 0.614 | 0.674 | 0.642 | 4650 |
-| T2 | Ops [8-24] | 0.237 | 0.283 | 0.258 | 1599 |
+| T0 | Ops [1-3] | 0.382 | 0.261 | 0.310 | 2404 |
+| T1 | Ops [4-7] | 0.615 | 0.677 | 0.644 | 4650 |
+| T2 | Ops [8-24] | 0.237 | 0.280 | 0.257 | 1599 |
 
 ### 4b. Calibrated (isotonic, fitted on Val 2023)
 
 | Class | Description | Precision | Recall | F1-score | Support |
 | --- | --- | --- | --- | --- | --- |
-| T0 | Ops [1-3] | 0.380 | 0.049 | 0.086 | 2404 |
-| T1 | Ops [4-7] | 0.546 | 0.961 | 0.696 | 4650 |
-| T2 | Ops [8-24] | 0.237 | 0.023 | 0.042 | 1599 |
+| T0 | Ops [1-3] | 0.363 | 0.049 | 0.086 | 2404 |
+| T1 | Ops [4-7] | 0.543 | 0.963 | 0.695 | 4650 |
+| T2 | Ops [8-24] | 0.239 | 0.014 | 0.026 | 1599 |
 
 *Confusion matrix (uncalibrated, principal model): see `confusion_matrix_temporal.png`*
 
@@ -64,13 +64,13 @@ Generated: 2026-06-23
 
 ## 5. RF Tier Classifier — Validation Set Metrics (2023, uncalibrated)
 
-Accuracy: **0.5022**  |  Balanced Accuracy: **0.4089**  |  Weighted F1: **0.4888**
+Accuracy: **0.5022**  |  Balanced Accuracy: **0.4103**  |  Weighted F1: **0.4902**
 
 | Class | Precision | Recall | F1-score | Support |
 | --- | --- | --- | --- | --- |
-| T0 | 0.347 | 0.220 | 0.269 | 1201 |
-| T1 | 0.632 | 0.709 | 0.668 | 2494 |
-| T2 | 0.257 | 0.298 | 0.276 | 861 |
+| T0 | 0.347 | 0.232 | 0.278 | 1201 |
+| T1 | 0.632 | 0.704 | 0.666 | 2494 |
+| T2 | 0.261 | 0.295 | 0.277 | 861 |
 
 ---
 
@@ -78,37 +78,39 @@ Accuracy: **0.5022**  |  Balanced Accuracy: **0.4089**  |  Weighted F1: **0.4888
 
 | Partition / Threshold | Accuracy | Precision | Recall | F1 | ROC-AUC | PR-AUC |
 | --- | --- | --- | --- | --- | --- | --- |
-| Val (2023) @ thr=0.50 | 0.9917 | 0.0000 | 0.0000 | 0.0000 | 0.6988 | 0.0377 |
-| Test (2024-2025) @ thr=0.50 | 0.9942 | 0.0000 | 0.0000 | 0.0000 | 0.6571 | 0.0119 |
-| Test (2024-2025) @ thr=0.35 *(selected)* | 0.9757 | 0.0287 | 0.1087 | 0.0455 | 0.6571 | 0.0119 |
+| Val (2023) @ thr=0.50 | 0.9917 | 0.0000 | 0.0000 | 0.0000 | 0.7129 | 0.0407 |
+| Test (2024-2025) @ thr=0.50 | 0.9939 | 0.0000 | 0.0000 | 0.0000 | 0.6549 | 0.0119 |
+| Test (2024-2025) @ thr=0.4 *(selected)* | 0.9846 | 0.0323 | 0.0652 | 0.0432 | 0.6549 | 0.0119 |
 
-> Operational threshold 0.35 selected as the F1-maximising point on the threshold scan (Test 2024-2025). The aerial classifier is trained on 2020-2022 only (2019 aerial rate 3.8% vs 0.5% in test).
+> Operational threshold 0.4 selected as the F1-maximising point on the threshold scan over the **Validation set (2023)**, then frozen and applied to the test set (no test-set tuning). The aerial classifier is trained on 2020-2022 only (2019 aerial rate 3.8% vs 0.5% in test).
 
 *PR curve: see `pr_curve_aerial.png`*
 
 ---
 
-## 7. Aerial Stage 1 — Threshold Scan (Test Set 2024-2025)
+## 7. Aerial Stage 1 — Threshold Scan (Validation Set 2023 — threshold selection)
 
 | Threshold | Accuracy | Precision | Recall | F1 | ROC-AUC | PR-AUC |
 | --- | --- | --- | --- | --- | --- | --- |
-| 0.10 | 0.5610 | 0.0079 | 0.6522 | 0.0155 | 0.6571 | 0.0119 |
-| 0.15 | 0.7006 | 0.0093 | 0.5217 | 0.0182 | 0.6571 | 0.0119 |
-| 0.20 | 0.8049 | 0.0084 | 0.3043 | 0.0163 | 0.6571 | 0.0119 |
-| 0.25 | 0.8896 | 0.0108 | 0.2174 | 0.0205 | 0.6571 | 0.0119 |
-| 0.30 | 0.9456 | 0.0159 | 0.1522 | 0.0289 | 0.6571 | 0.0119 |
-| 0.35 *(selected)* | 0.9757 | 0.0287 | 0.1087 | 0.0455 | 0.6571 | 0.0119 |
-| 0.40 | 0.9882 | 0.0172 | 0.0217 | 0.0192 | 0.6571 | 0.0119 |
-| 0.45 | 0.9928 | 0.0000 | 0.0000 | 0.0000 | 0.6571 | 0.0119 |
-| 0.50 | 0.9942 | 0.0000 | 0.0000 | 0.0000 | 0.6571 | 0.0119 |
-| 0.55 | 0.9946 | 0.0000 | 0.0000 | 0.0000 | 0.6571 | 0.0119 |
-| 0.60 | 0.9947 | 0.0000 | 0.0000 | 0.0000 | 0.6571 | 0.0119 |
-| 0.65 | 0.9947 | 0.0000 | 0.0000 | 0.0000 | 0.6571 | 0.0119 |
-| 0.70 | 0.9947 | 0.0000 | 0.0000 | 0.0000 | 0.6571 | 0.0119 |
-| 0.75 | 0.9947 | 0.0000 | 0.0000 | 0.0000 | 0.6571 | 0.0119 |
-| 0.80 | 0.9947 | 0.0000 | 0.0000 | 0.0000 | 0.6571 | 0.0119 |
-| 0.85 | 0.9947 | 0.0000 | 0.0000 | 0.0000 | 0.6571 | 0.0119 |
-| 0.90 | 0.9947 | 0.0000 | 0.0000 | 0.0000 | 0.6571 | 0.0119 |
+| 0.05 | 0.4493 | 0.0115 | 0.7838 | 0.0226 | 0.7129 | 0.0407 |
+| 0.10 | 0.6271 | 0.0146 | 0.6757 | 0.0286 | 0.7129 | 0.0407 |
+| 0.15 | 0.7695 | 0.0190 | 0.5405 | 0.0367 | 0.7129 | 0.0407 |
+| 0.20 | 0.8593 | 0.0237 | 0.4054 | 0.0447 | 0.7129 | 0.0407 |
+| 0.25 | 0.9124 | 0.0286 | 0.2973 | 0.0523 | 0.7129 | 0.0407 |
+| 0.30 | 0.9484 | 0.0374 | 0.2162 | 0.0637 | 0.7129 | 0.0407 |
+| 0.35 | 0.9704 | 0.0545 | 0.1622 | 0.0816 | 0.7129 | 0.0407 |
+| 0.40 *(selected)* | 0.9820 | 0.0755 | 0.1081 | 0.0889 | 0.7129 | 0.0407 |
+| 0.45 | 0.9884 | 0.0556 | 0.0270 | 0.0364 | 0.7129 | 0.0407 |
+| 0.50 | 0.9917 | 0.0000 | 0.0000 | 0.0000 | 0.7129 | 0.0407 |
+| 0.55 | 0.9919 | 0.0000 | 0.0000 | 0.0000 | 0.7129 | 0.0407 |
+| 0.60 | 0.9919 | 0.0000 | 0.0000 | 0.0000 | 0.7129 | 0.0407 |
+| 0.65 | 0.9919 | 0.0000 | 0.0000 | 0.0000 | 0.7129 | 0.0407 |
+| 0.70 | 0.9919 | 0.0000 | 0.0000 | 0.0000 | 0.7129 | 0.0407 |
+| 0.75 | 0.9919 | 0.0000 | 0.0000 | 0.0000 | 0.7129 | 0.0407 |
+| 0.80 | 0.9919 | 0.0000 | 0.0000 | 0.0000 | 0.7129 | 0.0407 |
+| 0.85 | 0.9919 | 0.0000 | 0.0000 | 0.0000 | 0.7129 | 0.0407 |
+| 0.90 | 0.9919 | 0.0000 | 0.0000 | 0.0000 | 0.7129 | 0.0407 |
+| 0.95 | 0.9919 | 0.0000 | 0.0000 | 0.0000 | 0.7129 | 0.0407 |
 
 *Threshold scan plot: see `threshold_scan.png`*
 
@@ -122,7 +124,7 @@ N test positives: **46**  |  MAE: **0.25**  |  RMSE: **0.54**
 
 | Predicted interval | n | MAE | RMSE |
 | --- | --- | --- | --- |
-| 2 | 42 | 0.11 | 0.14 |
+| 2 | 42 | 0.10 | 0.14 |
 | 3-5 | 4 | 1.74 | 1.76 |
 
 ---
@@ -131,27 +133,27 @@ N test positives: **46**  |  MAE: **0.25**  |  RMSE: **0.54**
 
 | Feature | Importance |
 | --- | --- |
-| LAT | 0.0789 |
-| LON | 0.0672 |
-| DC | 0.0605 |
-| DECLIVEMEDIO | 0.0583 |
-| TEMPERATURA | 0.0582 |
-| ALTITUDEMEDIA | 0.0557 |
-| HUMIDADERELATIVA | 0.0554 |
-| VENTOINTENSIDADE | 0.0552 |
-| DMC | 0.0542 |
-| BUI | 0.0539 |
-| doy_cos | 0.0527 |
-| FM | 0.0525 |
-| FWI | 0.0515 |
-| doy_sin | 0.0510 |
-| ISI | 0.0503 |
-| Hora | 0.0366 |
-| n_concurrent_fires | 0.0305 |
-| district_T2_rate | 0.0270 |
-| Distrito_enc_Meios_Terrestres | 0.0262 |
-| Mes | 0.0144 |
-| district_median_single_incident | 0.0101 |
+| LAT | 0.0796 |
+| LON | 0.0682 |
+| DC | 0.0614 |
+| TEMPERATURA | 0.0589 |
+| DECLIVEMEDIO | 0.0581 |
+| ALTITUDEMEDIA | 0.0556 |
+| VENTOINTENSIDADE | 0.0553 |
+| HUMIDADERELATIVA | 0.0550 |
+| DMC | 0.0547 |
+| BUI | 0.0546 |
+| doy_cos | 0.0535 |
+| FWI | 0.0524 |
+| FM | 0.0523 |
+| doy_sin | 0.0517 |
+| ISI | 0.0506 |
+| Hora | 0.0355 |
+| district_T2_rate | 0.0272 |
+| Distrito_enc_Meios_Terrestres | 0.0258 |
+| n_concurrent_fires | 0.0247 |
+| Mes | 0.0146 |
+| district_median_single_incident | 0.0102 |
 
 *Importance plot: see `feature_importance_temporal.png`*
 
@@ -167,4 +169,4 @@ N test positives: **46**  |  MAE: **0.25**  |  RMSE: **0.54**
 - KMeans fit exclusively on training partition; val/test tiers assigned via `kmeans.predict()` on precomputed centroids.
 - RF tier classifier calibrated with isotonic regression fitted on Val 2023. Calibrated predictions reported for test set only (val is in-sample for calibration).
 - Aerial classifier trained on 2020-2022 only (2019 excluded: positive rate 3.8% vs 0.5% in test set). Aerial regressor trained on 2019-2022 positives.
-- Aerial operational threshold set to 0.35 (F1-maximising point from threshold scan).
+- Aerial operational threshold = 0.4, selected as the F1-maximising point of the threshold scan on the Validation set (2023), then frozen and applied to the test set (no test-set tuning).

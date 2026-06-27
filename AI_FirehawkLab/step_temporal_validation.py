@@ -18,7 +18,9 @@ v2 improvements (over v1, 2026-04-22):
   3. Aerial: classifier trained on 2020-2022 only (2019 excluded — positive rate 3.8%
      vs 0.5% in test, a 6x distributional mismatch that distorts the learned threshold).
      Aerial regressor retains 2019-2022 positives (count data unaffected by rate shift).
-  4. Aerial operational threshold set to 0.70 (best F1 from threshold scan in v1).
+  4. Aerial operational threshold selected as the F1-maximising point of a threshold
+     scan over the VALIDATION set (2023), then frozen and applied to the test set
+     (no test-set tuning). Reported in the log and in section 6/7.
 
 Input     : dataset_final_clean.csv
 Output    : resultados_temporal/
@@ -65,7 +67,10 @@ TRAIN_YEARS        = [2019, 2020, 2021, 2022]
 VAL_YEARS          = [2023]
 TEST_YEARS         = [2024, 2025]
 AERIAL_TRAIN_YEARS = [2020, 2021, 2022]   # 2019 excluded: 3.8% aerial rate vs 0.5% test
-AERIAL_BEST_THR    = 0.35                  # selected from threshold scan (best F1 on v2 model)
+# Aerial operational threshold. NOT hardcoded and NOT chosen on the test set: it is
+# selected in section 8 as the F1-maximising point of the threshold scan over the
+# VALIDATION set (2023), then FROZEN before any test metric is reported.
+AERIAL_BEST_THR    = None
 K_TIERS            = 3
 SEED               = 42
 OUT_DIR            = 'resultados_temporal'
@@ -125,15 +130,21 @@ if 'Natureza' in df.columns:
 if 'DISTRITO' in df.columns:
     df['DISTRITO'] = df['DISTRITO'].astype(str).str.strip().str.title()
 
-# n_concurrent_fires: number of OTHER fires active in the same district on the same date.
-# Uses only (DISTRITO, date) input columns — zero leakage risk.
-# Computed on the full dataset so test fires in 2024-2025 reflect the actual
-# operational load on their dates (including other fires in the same district).
+# n_concurrent_fires: number of OTHER fires in the same district + same calendar day
+# that had ALREADY ignited at or before this fire's DHINICIO timestamp.
+# Per-(DISTRITO, day) cumcount over fires sorted by DHINICIO => for each fire, the
+# count of earlier same-day ignitions in its district. This avoids the look-ahead of
+# the previous same-date count (which also included fires that started LATER).
+# DHFIM / Duracao_Horas are deliberately NOT used to decide "still active": at ignition
+# time the end of other fires is unknown, so that would be a new leak. Criterion is
+# strictly "already ignited".
 if 'DISTRITO' in df.columns:
+    df['DHINICIO'] = pd.to_datetime(df['DHINICIO'], errors='coerce')
     df['_date'] = df['DHINICIO'].dt.date
+    _ord = df.sort_values('DHINICIO')
     df['n_concurrent_fires'] = (
-        df.groupby(['DISTRITO', '_date'])['DISTRITO'].transform('count') - 1
-    ).fillna(0).astype(int)
+        _ord.groupby(['DISTRITO', '_date']).cumcount().reindex(df.index).fillna(0).astype(int)
+    )
     df.drop(columns=['_date'], inplace=True)
 else:
     df['n_concurrent_fires'] = 0
@@ -510,6 +521,18 @@ reg_aerial.fit(X_train[mask_train_pos], ya_train.values[mask_train_pos])
 proba_val  = clf_aerial.predict_proba(X_val)[:, 1]
 proba_test = clf_aerial.predict_proba(X_test)[:, 1]
 
+# ── Operational threshold selection — on VALIDATION (2023) only, then FROZEN.
+# The threshold is the F1-maximising point of a scan over the Stage-1 probabilities
+# on Val 2023. It is chosen here, before any test metric is computed, and reused
+# unchanged for all test reporting. (Previously it was hardcoded to a value picked by
+# looking at the test set, which tunes a hyperparameter on the test data.)
+AERIAL_THR_GRID = np.arange(0.05, 0.96, 0.05)
+_val_f1 = [f1_score(yab_val, (proba_val >= t).astype(int), zero_division=0)
+           for t in AERIAL_THR_GRID]
+AERIAL_BEST_THR = float(round(AERIAL_THR_GRID[int(np.argmax(_val_f1))], 2))
+print(f"[Aerial] Threshold selected on Val 2023 (max F1): thr={AERIAL_BEST_THR} "
+      f"(Val F1={max(_val_f1):.4f}); frozen for test reporting.")
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 9. METRIC FUNCTIONS
@@ -599,10 +622,11 @@ print(f"  Aerial Val   AUC={aerial_val['auc']:.4f}  PR-AUC={aerial_val['prauc']:
 print(f"  Aerial Test  AUC={aerial_test['auc']:.4f}  PR-AUC={aerial_test['prauc']:.4f}  "
       f"F1@0.5={aerial_test['f1']:.4f}  F1@{AERIAL_BEST_THR}={aerial_test_thr['f1']:.4f}")
 
-# Threshold scan (test set)
+# Threshold scan — VALIDATION 2023 (where the operational threshold is chosen).
+# The scan and its figure are on Val, NOT test; its F1-max point is AERIAL_BEST_THR.
 scan_rows = []
-for thr in np.arange(0.10, 0.91, 0.05):
-    r = compute_aerial_s1(yab_test, proba_test, thr=float(thr))
+for thr in AERIAL_THR_GRID:
+    r = compute_aerial_s1(yab_val, proba_val, thr=float(thr))
     scan_rows.append({'threshold': round(float(thr), 2), **r})
 df_scan = pd.DataFrame(scan_rows)
 
@@ -695,7 +719,7 @@ ax1.axvline(AERIAL_BEST_THR, color='black', linestyle=':', alpha=0.7,
             label=f'Selected thr={AERIAL_BEST_THR}')
 ax1.set_xlabel('Threshold')
 ax1.set_ylabel('Score')
-ax1.set_title('Precision / Recall / F1 vs Threshold\n(Aerial Stage 1, Test 2024-2025)')
+ax1.set_title('Precision / Recall / F1 vs Threshold\n(Aerial Stage 1, Validation 2023 — threshold selection)')
 ax1.legend()
 ax1.grid(True, alpha=0.3)
 
@@ -705,11 +729,11 @@ ax2.axvline(AERIAL_BEST_THR, color='black', linestyle=':', alpha=0.7,
             label=f'Selected thr={AERIAL_BEST_THR}')
 ax2.set_xlabel('Threshold')
 ax2.set_ylabel('Accuracy')
-ax2.set_title('Accuracy vs Threshold\n(Aerial Stage 1, Test 2024-2025)')
+ax2.set_title('Accuracy vs Threshold\n(Aerial Stage 1, Validation 2023 — threshold selection)')
 ax2.legend()
 ax2.grid(True, alpha=0.3)
 
-plt.suptitle('Threshold Scan — Aerial Binary Classifier')
+plt.suptitle('Threshold Scan — Aerial Binary Classifier (Validation 2023)')
 plt.tight_layout()
 fig.savefig(os.path.join(OUT_DIR, 'threshold_scan.png'), dpi=120)
 plt.close(fig)
@@ -919,14 +943,15 @@ for pname, av in [('Val (2023) @ thr=0.50', aerial_val),
              f"{av['f1']:.4f}", f"{av['auc']:.4f}", f"{av['prauc']:.4f}"))
 W("")
 W(f"> Operational threshold {AERIAL_BEST_THR} selected as the F1-maximising point "
-  f"on the threshold scan (Test 2024-2025). The aerial classifier is trained on "
+  f"on the threshold scan over the **Validation set (2023)**, then frozen and applied "
+  f"to the test set (no test-set tuning). The aerial classifier is trained on "
   f"2020-2022 only (2019 aerial rate 3.8% vs 0.5% in test).")
 W("")
 W("*PR curve: see `pr_curve_aerial.png`*")
 W("")
 W("---")
 W("")
-W("## 7. Aerial Stage 1 — Threshold Scan (Test Set 2024-2025)")
+W("## 7. Aerial Stage 1 — Threshold Scan (Validation Set 2023 — threshold selection)")
 W("")
 W(md_row("Threshold", "Accuracy", "Precision", "Recall", "F1", "ROC-AUC", "PR-AUC"))
 W(md_row(*["---"] * 7))
@@ -982,8 +1007,9 @@ W("- RF tier classifier calibrated with isotonic regression fitted on Val 2023. 
   "Calibrated predictions reported for test set only (val is in-sample for calibration).")
 W("- Aerial classifier trained on 2020-2022 only (2019 excluded: positive rate 3.8% "
   "vs 0.5% in test set). Aerial regressor trained on 2019-2022 positives.")
-W(f"- Aerial operational threshold set to {AERIAL_BEST_THR} "
-  "(F1-maximising point from threshold scan).")
+W(f"- Aerial operational threshold = {AERIAL_BEST_THR}, selected as the F1-maximising "
+  "point of the threshold scan on the Validation set (2023), then frozen and applied "
+  "to the test set (no test-set tuning).")
 
 md_path = os.path.join(OUT_DIR, 'resultados_temporal.md')
 with open(md_path, 'w', encoding='utf-8') as f:

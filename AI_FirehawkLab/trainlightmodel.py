@@ -96,16 +96,19 @@ else:
     dt = pd.NaT
 
 # 2.9 PHASE 1 FEATURE: n_concurrent_fires
-# Count how many OTHER fires were active in the same DISTRITO on the same date.
-# Uses only input data (date + district) — zero leakage risk.
+# Number of OTHER fires in the same DISTRITO + same calendar day that had ALREADY
+# ignited at or before this fire's DHINICIO timestamp (per-(district, day) cumcount
+# over fires sorted by DHINICIO). Counts only earlier same-day ignitions — no
+# look-ahead. DHFIM / Duracao_Horas are NOT used: at ignition time the end of other
+# fires is unknown, so "still active" would itself leak. Criterion = "already ignited".
 if 'DISTRITO' in df.columns and isinstance(dt, pd.Series):
+    df['_dhinicio'] = dt
     df['_date_only'] = dt.dt.date
-    concurrent = (
-        df.groupby(['DISTRITO', '_date_only'])['DISTRITO']
-        .transform('count') - 1  # subtract the fire itself
+    _ord = df.sort_values('_dhinicio')
+    df['n_concurrent_fires'] = (
+        _ord.groupby(['DISTRITO', '_date_only']).cumcount().reindex(df.index).fillna(0).astype(int)
     )
-    df['n_concurrent_fires'] = concurrent.fillna(0).astype(int)
-    df.drop(columns=['_date_only'], inplace=True)
+    df.drop(columns=['_dhinicio', '_date_only'], inplace=True)
     print(f"-> n_concurrent_fires: mean={df['n_concurrent_fires'].mean():.2f}, max={df['n_concurrent_fires'].max()}")
 else:
     df['n_concurrent_fires'] = 0

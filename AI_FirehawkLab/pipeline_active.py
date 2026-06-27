@@ -30,9 +30,6 @@ except ImportError:
 # --- FILE SETTINGS ---
 # Active model: the dissertation tier bundle (KMeans tiers + two-stage aerial).
 BUNDLE_FILE = os.path.join(SCRIPT_DIR, 'model_tier_pipeline.pkl')
-# Legacy 'lite' MultiOutputRegressor kept in the repo as a fallback artifact only;
-# it is no longer loaded or used by the live pipeline (R2 ~ 0, exact-count regression).
-LEGACY_MODEL_FILE = os.path.join(SCRIPT_DIR, 'model_resources_lite.pkl')
 OUTPUT_FILE = os.path.join(SCRIPT_DIR, 'dashboard_predictions.csv')
 
 # Tier label mapping (Tier 0 = smallest deployment ... Tier 2 = largest).

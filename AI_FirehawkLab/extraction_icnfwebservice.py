@@ -5,14 +5,14 @@ import time
 import numpy as np
 from datetime import datetime, timedelta
 import os
-
+ 
 # List of years
-# --- LÓGICA DE DETEÇÃO DE DATA ---
+# Date-detection logic: resume extraction from the last recorded date
 last_date_recorded = None
 start_year_scan = 2019 # Default
-
+ 
 try:
-    print("-> A verificar dataset_final_clean.csv...")
+    print("-> Checking dataset_final_clean.csv...")
     if os.path.exists('dataset_final_clean.csv'):
         # READS JUST DHINICIO
         df_check = pd.read_csv('dataset_final_clean.csv', usecols=['DHINICIO'])
@@ -28,17 +28,17 @@ try:
             print("-> No valid dates. Full extraction (2019+).")
     else:
         print("-> File does not exist. Full extraction (2019+).")
-
+ 
 except Exception as e:
     print(f"-> Error checking file ({e}). Full extraction (2019+).")
-
+ 
 # Define years to be fetched
 current_year = datetime.now().year
 anos = list(range(start_year_scan, current_year + 1))
 todos_dados = []
-
+ 
 print(f"--- STARTING EXTRACTION FOR YEARS: {anos} ---")
-
+ 
 for ano in anos:
     url = f"https://fogos.icnf.pt/localizador/webserviceocorrencias.asp?ano={ano}" #Searching for annual blocks to surpass API safety limits but also timeout error
     print(f"-> Downloading year {ano}...")
@@ -60,7 +60,7 @@ for ano in anos:
             else:
                 # If no NCCO, tries ID, if no ID, skips
                 continue
-
+ 
             # --- Time/Present records Filter ---
             # Verifies if fire already exists in our records based on DHINICIO
             dhinicio_tag = child.find('DHINICIO')
@@ -74,8 +74,8 @@ for ano in anos:
                         continue 
                 except ValueError:
                     pass # if date is rarely malformed, we proceed to extract it anyway
-
-
+ 
+ 
             # 2. DEFINE WHAT WE WANT TO EXTRACT
             # Mapping: "Name we want in CSV" : "Name of TAG in XML"
             mapa_colunas = {
@@ -96,7 +96,7 @@ for ano in anos:
                 'HUMIDADERELATIVA': 'HUMIDADERELATIVA',
                 'VENTOINTENSIDADE': 'VENTOINTENSIDADE',
                 'Area_Ardida_ha': 'AREATOTAL'
-
+ 
             }
             
             # extraction
@@ -114,13 +114,13 @@ for ano in anos:
         
     except Exception as e:
         print(f"   Error in year {ano}: {e}")
-
+ 
 # --- CREATE FINAL DATAFRAME ---
 df = pd.DataFrame(todos_dados)
-
+ 
 # --- CLEANING ---
 print("\nProcessing data...")
-
+ 
 # 1. CRITICAL DATE CONVERSION (Smart Filter)
 # Convert dates immediately. If DHFIM fails or is missing, it becomes NaT (Not a Time)
 if 'DHFIM' in df.columns:
@@ -134,12 +134,12 @@ if 'DHFIM' in df.columns:
 else:
     # If the DHFIM column is missing entirely, the dataset is empty or corrupted
     df = pd.DataFrame() 
-
+ 
 # Proceed only if there is data left
 if not df.empty:
     if 'DHINICIO' in df.columns:
         df['DHINICIO'] = pd.to_datetime(df['DHINICIO'], format='%d-%m-%Y %H:%M:%S', errors='coerce')
-
+ 
     # List of numeric columns to convert
     cols_numericas = [
         'FWI', 'DMC', 'DC', 'ISI', 'BUI', 'FFMC', 
@@ -147,7 +147,7 @@ if not df.empty:
         'Area_Ardida_ha',
         'TEMPERATURA', 'HUMIDADERELATIVA', 'VENTOINTENSIDADE', 'VPD_kPa'
     ]
-
+ 
     for col in cols_numericas:
         # Extra safety check: only converts if column exists
         if col in df.columns:
@@ -158,34 +158,34 @@ if not df.empty:
             
 # Fill failures with mean
 df = df.fillna(df.mean(numeric_only=True))
-
+ 
 # Convert dates TO datetime format
 df['DHINICIO'] = pd.to_datetime(df['DHINICIO'], format='%d-%m-%Y %H:%M:%S', errors='coerce')
 df['DHFIM'] = pd.to_datetime(df['DHFIM'], format='%d-%m-%Y %H:%M:%S', errors='coerce')
-
+ 
 #Calculates VPD (Vapor Pressure Deficit) from Temperature and Relative Humidity
     # Function to calculate Saturation Vapor Pressure (SVP) in kPa
 def calc_svp(T_celsius):
     # Returns result in kPa (kilopascals)
     return 0.6108 * np.exp(17.27 * T_celsius / (T_celsius + 237.3))
-
+ 
     # Calculate VPD in kPa
 T = df['TEMPERATURA']
 RH = df['HUMIDADERELATIVA']
-
+ 
     # Calculate Saturation Vapor Pressure (SVP) for the given temperature
 SVP = calc_svp(T)
-
+ 
     # Calculate Vapor Pressure Deficit (VPD = SVP - AVP)
 df['VPD_kPa'] = SVP * (1 - RH / 100)
-
-
-
+ 
+ 
+ 
 # --- MERGE AND SAVE---
 # Check if file exists and load existing data
-
+ 
 csv_filename = 'dataset_fires_features.csv'
-
+ 
 if not df.empty:
     try:
         if os.path.exists(csv_filename):
@@ -209,3 +209,4 @@ if not df.empty:
         
 else:
     print("-> No new data extracted. The original file remains unchanged.")
+ 

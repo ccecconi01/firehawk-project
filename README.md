@@ -80,9 +80,16 @@ Prerequisites: Python 3.10+, Node.js 18+, Git LFS.
 ```bash
    cd firehawk-app
    npm install
-   npm run dev      # Vite dev server on :5173 (calls Python :5001 and auth :5000 via config.js)
-   # or: npm run build   # static build served by the Flask server
+   npm run dev      # Vite dev server on http://localhost:5173 (hot reload).
+                    # /data is proxied to the Python server (:5001), so the dashboard
+                    # and "Update Incidents" use live data — keep the inference server running.
 ```
+   # Production-like run (recommended for a faithful demo):
+   #   npm run build
+   #   then open http://localhost:5001  — the Flask server serves the built SPA,
+   #   the live /data snapshot and the refresh endpoint from a single origin.
+
+   
 4. Auth backend (separate terminal; needed for login / RBAC):
 ```bash
    cd firehawk-backend

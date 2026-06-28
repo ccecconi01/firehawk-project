@@ -1,3 +1,4 @@
+# Step 2: resource-model training experiment (see step_temporal_validation.py for the reported pipeline).
 import pandas as pd
 import numpy as np
 import matplotlib

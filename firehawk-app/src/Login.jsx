@@ -1,3 +1,4 @@
+// Login screen: authenticates against the Node auth backend (config.AUTH_API).
 import React, { useState } from 'react';
 import config from './config';
 

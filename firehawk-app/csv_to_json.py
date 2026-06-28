@@ -116,7 +116,7 @@ def csv_to_json(csv_file, output_file=None, pretty=False, ndjson=False, id_colum
                 if col in df.columns:
                     df[col] = df[col].apply(_to_str_int)
 
-        print(f"  ✓ {len(df)} rows read")
+        print(f"  {len(df)} rows read")
 
         json_data = _df_to_records_strict(df)
 
@@ -140,7 +140,7 @@ def csv_to_json(csv_file, output_file=None, pretty=False, ndjson=False, id_colum
                     f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
         file_size_kb = os.path.getsize(output_file) / 1024
-        print(f"\n✓ Conversion completed!")
+        print(f"\nConversion completed!")
         print(f"  File: {output_file}")
         print(f"  Size: {file_size_kb:.2f} KB")
         print(f"  Rows: {len(json_data)}")
@@ -177,11 +177,11 @@ def merge_firehawk(alerts_csv, results_csv, output_file=None, pretty=False, ndjs
 
     print(f"→ Reading alerts CSV: {alerts_csv}")
     df_alerts = pd.read_csv(alerts_csv)
-    print(f"  ✓ {len(df_alerts)} alert rows read")
+    print(f"  {len(df_alerts)} alert rows read")
 
     print(f"→ Reading results CSV: {results_csv}")
     df_results = pd.read_csv(results_csv)
-    print(f"  ✓ {len(df_results)} results rows read")
+    print(f"  {len(df_results)} results rows read")
 
     # Normalize IDs as strings (safer in JS)
     if "ID_Incidente" in df_alerts.columns:
@@ -244,7 +244,7 @@ def merge_firehawk(alerts_csv, results_csv, output_file=None, pretty=False, ndjs
             for rec in merged:
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
-    print(f"\n✓ Merge completed!")
+    print(f"\nMerge completed!")
     print(f"  File: {output_file}")
     print(f"  Alerts: {len(merged)}")
     print(f"  Results: {len(results_records)}")

@@ -49,42 +49,29 @@ if 'Hora' in df.columns:
     df['Hora'] = pd.to_datetime(df['Hora'], format='%H:%M', errors='coerce').dt.hour
     print(f"-> Converted Hora to numeric (0-23)")
 
-# 2.6 ONE-HOT ENCODING FOR NATUREZA (fire type)
-# Reference: Forestry research shows different fire types require different resource allocation strategies
-# - Mato (shrubland): Rapid spread, lower intensity, fewer personnel needed
-# - Agrícola (agricultural): Lower spread rate, containable with fewer resources
-# - Povoamento Florestal (forest): Highest intensity, most resources required
+# 2.6 One-hot encode Natureza (fire type). Kept in df for inspection only; not a model feature.
 if 'Natureza' in df.columns:
     natureza_encoded = pd.get_dummies(df['Natureza'], prefix='Natureza', drop_first=False)
     df = pd.concat([df, natureza_encoded], axis=1)
     print(f"-> One-hot encoded Natureza: {list(natureza_encoded.columns)}")
 
 # 2.6B DISTRITO TARGET ENCODING (operational footprint proxy)
-# Target encoding: each district is replaced by the mean of each target in the TRAINING set.
-# Why not one-hot: 18 binary columns dilute RF split sampling (sqrt(39)≈6 features per split).
-# 3 numeric columns are denser and more informative.
-# Encoding is computed AFTER the train/test split to avoid data leakage.
+# Each district replaced by its per-target training-set mean (denser than 18 one-hot
+# columns for RF). Computed after the split to avoid leakage.
 if 'DISTRITO' in df.columns:
     df['DISTRITO'] = df['DISTRITO'].astype(str).str.strip().str.title()
     print(f"-> DISTRITO standardized: {df['DISTRITO'].nunique()} unique districts. Encoding post-split.")
 
-# 2.7 INTERACTION FEATURES (Academic basis below)
-# Reference: Rothermel (1972) and subsequent fire behavior models show that resource needs scale multiplicatively
-# with both fuel availability (FM/FFMC) and environmental drivers (wind, temperature)
-
-# FWI * Wind interaction: High fire danger + high wind = exponential spread rate
-# This is the basis of the Canadian Fire Weather Index System (Van Wagner & Pickett, 1985)
-# Commented out: removed from feature set (not part of Phase 1 plan, may add noise)
+# 2.7 Interaction features (kept commented out — excluded from the feature set).
+# FWI * Wind:
 '''df['FWI_Wind_Interaction'] = df['FWI'] * df['VENTOINTENSIDADE']
 print(f"-> Created FWI * Wind interaction (fire danger × wind speed)")'''
 
-# FM * Declivity interaction: Fuel moisture × slope affects fire intensity
-# Reference: Cruz & Alexander (2010) - Assessing improvements in the Canadian forest fire weather index
-# Commented out: removed from feature set (not part of Phase 1 plan, may add noise)
+# FM * Slope:
 '''df['FM_Slope_Interaction'] = df['FM'] * df['DECLIVEMEDIO']
 print(f"-> Created FM * Slope interaction (fuel state × terrain steepness)")'''
 
-# Additional interactions commonly used in operational models
+# Other interactions (Temp*Wind, FWI*VPD):
 '''df['Temp_Wind_Interaction'] = df['TEMPERATURA'] * df['VENTOINTENSIDADE']
 df['FWI_VPD_Interaction'] = df['FWI'] * df['VPD_kPa']
 print("-> Created Temp*Wind and FWI*VPD interactions")'''

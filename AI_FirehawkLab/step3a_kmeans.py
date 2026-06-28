@@ -1,3 +1,7 @@
+# DEPRECATED (exploratory only): clusters the FULL dataset with StandardScaler and
+# yields 55/33/13 -- NOT the adopted tiers. The model-consistent k=3 tier figure is
+# step3a_tiers_modelconsistent.py; the k=7 selection figure is step3b_kmeans_k7_comparison.py.
+
 import pandas as pd
 import numpy as np
 import matplotlib
@@ -10,9 +14,7 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_score
 from sklearn.impute import SimpleImputer
 
-# ============================================================
 # STEP 3a: K-Means Exploration
-# ------------------------------------------------------------
 # PART A: K-Means on FEATURES
 #   Question: do fires naturally cluster by weather/geography?
 #   And if so, do those clusters map to different resource levels?
@@ -22,9 +24,8 @@ from sklearn.impute import SimpleImputer
 #   Question: are there natural "tiers" in resource deployment
 #   (Operacionais_Man + Meios_Terrestres) that are data-driven?
 #   These centroids become the tier boundaries for Step 3b.
-# ============================================================
 
-# ------ 1. LOAD & PREPROCESS (mirrors trainlightmodel.py) ------
+# 1. LOAD & PREPROCESS (mirrors trainlightmodel.py)
 print("Loading data...")
 df = pd.read_csv('dataset_final_clean.csv')
 df.columns = df.columns.str.replace(r"\s+", "_", regex=True)
@@ -61,7 +62,7 @@ y_log = np.log1p(y_raw)
 
 K_RANGE = range(2, 8)   # test K=2 through 7
 
-# ------ 2. PART A: K-Means on FEATURES ------
+# 2. PART A: K-Means on FEATURES
 print("\n--- Part A: K-Means on Features ---")
 
 # Scale features: K-Means uses Euclidean distance — unscaled features would let
@@ -104,7 +105,7 @@ feat_cluster_sizes = cluster_df.groupby('cluster').size().rename('n_fires')
 print("\nMean targets per feature cluster:")
 print(pd.concat([feat_cluster_means, feat_cluster_sizes], axis=1).to_string())
 
-# ------ 3. PART B: K-Means on TARGETS ------
+# 3. PART B: K-Means on TARGETS
 print("\n--- Part B: K-Means on Targets ---")
 
 # Scale log-targets for the same reason as features.
@@ -160,11 +161,11 @@ print("\nMeios_Terrestres per tier (percentiles):")
 print(tier_stats.groupby('tier')['Meios_Terrestres']
       .describe(percentiles=[.25, .5, .75, .90]).to_string())
 
-# ------ 4. GRAPHS ------
+# 4. GRAPHS
 print("\nGenerating graphs...")
 palette = sns.color_palette('tab10', n_colors=max(best_k_X, best_k_y))
 
-# ---- FIGURE 1: Feature K-Means ----
+# FIGURE 1: Feature K-Means
 fig1, axes1 = plt.subplots(2, 2, figsize=(16, 14))
 
 # [0,0] Elbow curve
@@ -220,7 +221,7 @@ fig1.savefig('step3a_features_kmeans.png', dpi=120)
 plt.close(fig1)
 print("-> Saved: step3a_features_kmeans.png")
 
-# ---- FIGURE 2: Target K-Means ----
+# FIGURE 2: Target K-Means
 fig2, axes2 = plt.subplots(2, 2, figsize=(16, 14))
 
 # [0,0] Elbow curve
@@ -285,7 +286,7 @@ fig2.savefig('step3a_targets_kmeans.png', dpi=120)
 plt.close(fig2)
 print("-> Saved: step3a_targets_kmeans.png")
 
-# ------ 5. SAVE RESULTS TEXT ------
+# 5. SAVE RESULTS TEXT
 with open('step3a_kmeans_results.txt', 'w', encoding='utf-8') as f:
     f.write("=== STEP 3a: K-Means Exploration ===\n\n")
 

@@ -22,6 +22,22 @@ Single containerised hybrid monolith deployed on Railway:
 The active model is the self-contained bundle `AI_FirehawkLab/model_tier_pipeline.pkl`
 (KMeans tiers + Random Forest tier classifier + two-stage aerial model).
  
+## Model and results
+
+The active model is the dissertation tier formulation, validated on a strict temporal
+split (train 2019-2022, validation 2023, test 2024-2025).
+
+- Tier classifier (Random Forest), test 2024-2025: accuracy 0.488, balanced accuracy
+  0.406, weighted F1 0.480; per-tier recall T0/T1/T2 = 0.261 / 0.677 / 0.280; vehicle
+  range accuracy 72.2%.
+- Two-stage aerial model: operational threshold 0.40, selected by maximum F1 on the
+  validation set (2023) and frozen before test reporting (not tuned on the test set);
+  test ROC-AUC 0.655, PR-AUC 0.012.
+- `n_concurrent_fires` is leakage-free: it counts only fires in the same district and
+  calendar day that ignited at or before the incident (no look-ahead; DHFIM/duration
+  are not used). It is a minor predictor (MDI importance rank ~19 of 21), not a top feature.
+
+
 ## Environment variables
  
 | Variable | Default | Purpose |
@@ -61,11 +77,17 @@ Prerequisites: Python 3.10+, Node.js 18+, Git LFS.
 ```bash
    cd firehawk-app
    npm install
-   npm run dev      # dev server; proxies API to localhost:5001
+   npm run dev      # Vite dev server on :5173 (calls Python :5001 and auth :5000 via config.js)
    # or: npm run build   # static build served by the Flask server
 ```
-4. The Node auth backend runs as a separate service on port 5000
-   (`config.js` -> `AUTH_API`); start it if login is needed locally.
+4. Auth backend (separate terminal; needed for login / RBAC):
+```bash
+   cd firehawk-backend
+   npm install
+   # create .env with MySQL settings: DB_HOST, DB_USER, DB_PASSWORD, DB_NAME (optional PORT)
+   node setup.js     # provisions and seeds the MySQL schema (default admin user)
+   npm start         # http://localhost:5000  (config.js -> AUTH_API)
+```
 ## Deploy to Railway
  
 The `Dockerfile` builds the whole stack (Python + Node + React) into one image.

@@ -177,7 +177,7 @@ export default function AlertDetails({ userData, onLogout }) {
   const opsGap = rangeGap(realOps, predForecast.opsRange);
   const vehGap = rangeGap(realVeh, predForecast.vehRange);
 
-  // --------- PDF GENERATION ----------
+  // PDF GENERATION
   const handleGenerateReport = () => {
     if (!alertData) return;
 

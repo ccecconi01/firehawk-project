@@ -31,7 +31,7 @@ export default function ManageProfileModal({ userData, onClose, onPasswordUpdate
     setMessage('');
     setMessageType('');
 
-    // ---------- Client-side validation ----------
+    // Client-side validation
     // Ensure all fields are filled
     if (!currentPassword || !newPassword || !confirmPassword) {
       setMessage('All fields are required');

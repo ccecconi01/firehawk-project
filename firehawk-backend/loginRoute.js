@@ -1,3 +1,4 @@
+// Express authentication routes (login), mounted under /api.
 const express = require('express');
 const router = express.Router();
 const pool = require('./db');

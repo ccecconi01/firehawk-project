@@ -1,3 +1,4 @@
+// MySQL connection pool (mysql2), configured from environment variables.
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 

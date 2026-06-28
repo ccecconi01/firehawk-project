@@ -1,3 +1,4 @@
+// Root component: client-side routing with auth-gated routes (login, dashboard, alert details).
 import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './Login';

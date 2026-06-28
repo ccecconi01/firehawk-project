@@ -62,7 +62,6 @@ from sklearn.metrics import (
 
 warnings.filterwarnings('ignore')
 
-# ── Constants ──────────────────────────────────────────────────────────────────
 TRAIN_YEARS        = [2019, 2020, 2021, 2022]
 VAL_YEARS          = [2023]
 TEST_YEARS         = [2024, 2025]
@@ -96,9 +95,7 @@ BASE_FEATURES = [
 ]
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # 1. LOAD & PREPROCESS  (mirrors trainlightmodel.py pre-split steps)
-# ──────────────────────────────────────────────────────────────────────────────
 print("=" * 60)
 print("Temporal Validation Pipeline v2 — Firehawk")
 print("=" * 60)
@@ -153,9 +150,7 @@ print(f"  Loaded {len(df)} rows | "
       f"years: {sorted(df['Ano'].dropna().unique().astype(int).tolist())}")
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # 2. TEMPORAL SPLIT
-# ──────────────────────────────────────────────────────────────────────────────
 # Strict chronological split prevents future operational and seasonal patterns
 # from leaking into the training phase — a problem that random split masks.
 print("\n[2] Temporal split...")
@@ -168,9 +163,7 @@ for name, part in [('Train', df_train), ('Val', df_val), ('Test', df_test)]:
     print(f"  {name}: {len(part):>6,} ({len(part)/len(df)*100:.1f}%)")
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # 3. DISTRICT FEATURES  (computed from training partition only — no leakage)
-# ──────────────────────────────────────────────────────────────────────────────
 print("\n[3] Building district features from training partition only...")
 
 
@@ -231,9 +224,7 @@ features = BASE_FEATURES + extra_feats
 print(f"  Features after district stats: {len(features)}")
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # 4. EXTRACT ARRAYS
-# ──────────────────────────────────────────────────────────────────────────────
 def extract_arrays(df_part, feat_list):
     """
     Extract model-ready arrays from a partition dataframe.
@@ -260,9 +251,7 @@ for name, yab in [('Train', yab_train), ('Val', yab_val), ('Test', yab_test)]:
     print(f"  Aerial positives {name}: {int(yab.sum())} ({yab.mean()*100:.1f}%)")
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # 5. K-MEANS TIER LABELLING  (fit on train only)
-# ──────────────────────────────────────────────────────────────────────────────
 # KMeans is fit in log1p space: right-skewed targets require log compression so
 # cluster geometry is governed by operational significance (2->5 resources is
 # comparable to 20->50 resources) rather than raw magnitude.
@@ -317,9 +306,7 @@ for i in range(K_TIERS):
           f"({n} train fires, {pct:.1f}%)")
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # 5b. DISTRICT T2 RATE  (train-only, added after KMeans labels are available)
-# ──────────────────────────────────────────────────────────────────────────────
 # Per-district fraction of T2 incidents in the training set.
 # Captures each district's propensity for large-scale deployments — a signal
 # that district_median_single_incident does not provide (tail vs median).
@@ -353,9 +340,7 @@ X_val,   y_val,   ya_val,   yab_val   = extract_arrays(df_val,   features)
 X_test,  y_test,  ya_test,  yab_test  = extract_arrays(df_test,  features)
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # 6. BASELINES
-# ──────────────────────────────────────────────────────────────────────────────
 print("\n[6] Computing baselines...")
 
 # Baseline A: majority class — always predict the most frequent tier in train.
@@ -403,9 +388,7 @@ print(f"  A: always Tier {maj_tier}  |  "
       f"B: (district,month)->KMeans  |  C: random stratified {train_p.round(3)}")
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # 7. RF TIER CLASSIFIER  +  ISOTONIC CALIBRATION ON VAL
-# ──────────────────────────────────────────────────────────────────────────────
 # Hyperparameters identical to trainlightmodel.py for fair comparison.
 # class_weight='balanced' compensates for tier imbalance (Tier 1 ~ 55% of data).
 print(f"\n[7] Training RF Tier Classifier (K={K_TIERS})...")
@@ -421,7 +404,6 @@ pred_RF_val  = clf_tiers.predict(X_val)
 pred_RF_test = clf_tiers.predict(X_test)
 print("  RF Tier Classifier trained.")
 
-# ── Gradient-boosting benchmarks (XGBoost, HistGradientBoosting) ──────────────
 # Required by the supervisory guidelines: demonstrate that changing the algorithm
 # family does not, by itself, overcome the absence of operational variables.
 # Trained on the IDENTICAL temporal features (X_train) and KMeans tier labels
@@ -451,7 +433,6 @@ for _nm, _p in [("XGBoost", pred_XGB), ("HistGradientBoosting", pred_HGB)]:
     print(f"  {_nm}: acc={accuracy_score(_tt_test,_p):.3f} "
           f"bal_acc={balanced_accuracy_score(_tt_test,_p):.3f} "
           f"f1w={f1_score(_tt_test,_p,average='weighted'):.3f}")
-# ─────────────────────────────────────────────────────────────────────────────
 
 
 # Isotonic calibration fitted on Val 2023 (one-vs-rest, one IsotonicRegression per class).
@@ -481,9 +462,7 @@ pred_RF_test_cal = predict_calibrated(X_test)
 print("  Calibrated classifier ready.")
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # 8. TWO-STAGE AERIAL MODEL
-# ──────────────────────────────────────────────────────────────────────────────
 # Stage 1: binary classifier — did this fire receive aerial support?
 #   Trained on 2020-2022 only (2019 excluded: 3.8% aerial rate vs 0.5% test).
 #   class_weight='balanced' remains critical: ~99% of fires have zero aerial assets.
@@ -521,7 +500,6 @@ reg_aerial.fit(X_train[mask_train_pos], ya_train.values[mask_train_pos])
 proba_val  = clf_aerial.predict_proba(X_val)[:, 1]
 proba_test = clf_aerial.predict_proba(X_test)[:, 1]
 
-# ── Operational threshold selection — on VALIDATION (2023) only, then FROZEN.
 # The threshold is the F1-maximising point of a scan over the Stage-1 probabilities
 # on Val 2023. It is chosen here, before any test metric is computed, and reused
 # unchanged for all test reporting. (Previously it was hardcoded to a value picked by
@@ -534,9 +512,7 @@ print(f"[Aerial] Threshold selected on Val 2023 (max F1): thr={AERIAL_BEST_THR} 
       f"(Val F1={max(_val_f1):.4f}); frozen for test reporting.")
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # 9. METRIC FUNCTIONS
-# ──────────────────────────────────────────────────────────────────────────────
 
 def compute_tier_metrics(y_true, y_pred):
     """Compute full tier classification metrics."""
@@ -581,9 +557,7 @@ def compute_aerial_s1(y_true, y_prob, thr=0.5):
     }
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # 10. EVALUATE — ALL MODELS ON TEST SET (primary) AND VAL SET (monitoring)
-# ──────────────────────────────────────────────────────────────────────────────
 print("\n[10] Evaluating models...")
 
 # Tier metrics
@@ -662,9 +636,7 @@ else:
     print("  Aerial Stage 2: no positive test cases.")
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # 11. FIGURES
-# ──────────────────────────────────────────────────────────────────────────────
 print("\n[11] Generating figures...")
 
 sns.set_theme(style='whitegrid', font_scale=1.1)
@@ -753,9 +725,7 @@ plt.close(fig)
 print("  -> feature_importance_temporal.png")
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # 12. SAVE PIPELINE PKL
-# ──────────────────────────────────────────────────────────────────────────────
 print("\n[12] Saving pipeline pickle...")
 
 pipeline = {
@@ -789,9 +759,7 @@ joblib.dump(pipeline, os.path.join(OUT_DIR, 'pipeline_temporal.pkl'))
 print("  -> pipeline_temporal.pkl")
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # 13. MARKDOWN REPORT
-# ──────────────────────────────────────────────────────────────────────────────
 print("\n[13] Writing resultados_temporal.md...")
 
 

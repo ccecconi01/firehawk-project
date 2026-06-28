@@ -1,3 +1,4 @@
+// Frontend config: API base URLs (auth backend, Python data API) for local vs deployed.
 
 
 // Check if the site is running on your computer

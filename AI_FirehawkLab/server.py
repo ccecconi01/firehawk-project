@@ -13,9 +13,7 @@ from apscheduler.triggers.cron import CronTrigger
 # Import the pipeline
 import pipeline_active
  
-# ==========================================
 # PATH / CONFIG
-# ==========================================
 # FRONTEND_FOLDER: built SPA (Vite 'dist'); '..' goes up to repo root.
 FRONTEND_FOLDER = os.path.join(os.path.dirname(__file__), '..', 'firehawk-app', 'dist')
  
@@ -41,9 +39,7 @@ app = Flask(__name__, static_folder=FRONTEND_FOLDER)
 CORS(app)
  
  
-# ==========================================
 # SNAPSHOT HELPERS
-# ==========================================
 def snapshot_path():
     return os.path.join(DATA_DIR, SNAPSHOT_NAME)
  
@@ -88,7 +84,7 @@ def run_pipeline_guarded(source):
         print(f"[{source}] Refresh already in progress — skipping this trigger.")
         return 'busy'
     try:
-        print(f"[{source}] --- 🦅 FireHawk: running pipeline ---")
+        print(f"[{source}] FireHawk: running pipeline")
         t0 = time.time()
         pipeline_active.run_pipeline()
         print(f"[{source}] Pipeline finished in {time.time() - t0:.1f}s.")
@@ -137,9 +133,7 @@ def start_background():
         print(f"[scheduler] Snapshot {age:.1f}h old — no startup refresh needed.")
  
  
-# ==========================================
 # ROUTES
-# ==========================================
 # --- 1. API ROUTES (priority) ---
 @app.route('/api/refresh-data', methods=['POST'])
 def refresh_data():

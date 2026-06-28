@@ -1,3 +1,4 @@
+# Extraction: pull raw incident/weather records from the ICNF web service.
 import requests
 import xml.etree.ElementTree as ET
 import pandas as pd

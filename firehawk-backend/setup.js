@@ -1,3 +1,4 @@
+// One-off DB setup: provisions and seeds the MySQL schema (default admin user).
 require('dotenv').config();
 const mysql = require('mysql2/promise');
 

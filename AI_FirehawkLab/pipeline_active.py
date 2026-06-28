@@ -10,9 +10,7 @@ import json
 import sys
 import os
 
-# ==========================================
 # PATH CONFIGURATION AND IMPORTS
-# ==========================================
 
 # 1. Get the directory where THIS script is saved
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -64,9 +62,7 @@ JSON_OUTPUT_FILE = resolve_json_output_file()
 
 TOP_N_RECENT = 65
 
-# ==========================================
 # 1. SCIENTIFIC FWI CALCULATION ENGINE
-# ==========================================
 def calculate_fwi_codes(temp, rh, wind_kph, rain_mm, month):
     # Standard start-up values
     prev_ffmc = 85.0
@@ -167,9 +163,7 @@ def calculate_fwi_codes(temp, rh, wind_kph, rain_mm, month):
         'ISI': round(isi, 1), 'BUI': round(bui, 1), 'FWI': round(fwi_final, 1)
     }
 
-# ==========================================
 # 2. WEATHER & ELEVATION APIs
-# ==========================================
 
 def get_historical_weather(lat, lon, date_obj):
     """Fetches past weather + PRESSURE + WIND DIRECTION."""
@@ -281,9 +275,7 @@ def estimate_slope(lat, lon, distance_m=100):
     except:
         return 0.0
 
-# ==========================================
 # 3. HELPER: FETCH RECENT HISTORY (V2 API)
-# ==========================================
 
 def fetch_recent_history_v2(days_back):
     """
@@ -311,9 +303,7 @@ def fetch_recent_history_v2(days_back):
         
     return []
 
-# ==========================================
 # 4. MAIN PIPELINE
-# ==========================================
 
 def _norm_district(name):
     """Normalize a district name to match the bundle's training keys (strip + Title Case)."""

@@ -1,3 +1,4 @@
+# Extraction: pull incident data from the fogos.pt API.
 import requests
 import json
 import pandas as pd

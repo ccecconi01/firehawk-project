@@ -1,3 +1,4 @@
+# Step 2: XGBoost training experiment (benchmark).
 import pandas as pd
 import numpy as np
 import matplotlib

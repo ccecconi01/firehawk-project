@@ -1,3 +1,4 @@
+// Profile modal: shows the signed-in user with logout / manage-profile actions.
 import { useState } from 'react';
 import ManageProfileModal from './ManageProfileModal';
 

@@ -1,3 +1,4 @@
+// Auth backend entry point: Express server exposing the /api auth routes (port 5000).
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();

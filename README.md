@@ -59,7 +59,7 @@ split (train 2019-2022, validation 2023, test 2024-2025).
   `dist/data/fires.json`, then replaced by the first live run.
 ## Run locally
  
-Prerequisites: Python 3.10+, Node.js 18+, Git LFS.
+Prerequisites: Python 3.11+, Node.js 18+, Git LFS.
 > Windows (PowerShell): set environment variables on their own line — e.g.
 > `$env:DATA_DIR="./_vol"` then `python server.py`. If `python`/`pip` are not
 > recognised, use the `py` launcher: `py server.py`, `py -m pip install -r requirements.txt`.

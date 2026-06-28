@@ -5,7 +5,7 @@
 // - useState: stores local component state (modal open, data arrays, loading flag)
 // - useEffect: runs side-effects (fetching fires.json on mount)
 // - useMemo: derives filtered/paginated views without recomputing on every render
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
  
 // Config with API URLs
 import config from './config';
@@ -83,6 +83,14 @@ function realResourcesText(od) {
   return `${man} ops · ${veh} veh · ${air} air`;
 }
  
+/** Non-blocking toast variant -> Tailwind classes (dashboard palette). */
+function toastVariant(v) {
+  if (v === 'success') return 'bg-emerald-50 border-emerald-200 text-emerald-800';
+  if (v === 'warning') return 'bg-amber-50 border-amber-200 text-amber-800';
+  if (v === 'error') return 'bg-red-50 border-red-200 text-red-800';
+  return 'bg-blue-50 border-blue-200 text-blue-800';
+}
+
 export default function Dashboard({ userData, onLogout }) {
   // Router navigation function
   const navigate = useNavigate();
@@ -98,6 +106,18 @@ export default function Dashboard({ userData, onLogout }) {
  
   // Refreshing state (Update Incidents button)
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Non-blocking status toast { id, text, variant }; auto-dismisses unless sticky.
+  const [toast, setToast] = useState(null);
+  const toastIdRef = useRef(0);
+  const showToast = (text, variant = 'info', autoHideMs = 6000) => {
+    const id = toastIdRef.current + 1;
+    toastIdRef.current = id;
+    setToast({ id, text, variant });
+    if (autoHideMs) {
+      setTimeout(() => setToast((cur) => (cur && cur.id === id ? null : cur)), autoHideMs);
+    }
+  };
  
   // Listing controls (page state — React state only, not localStorage)
   const [page, setPage] = useState(1);
@@ -140,16 +160,17 @@ export default function Dashboard({ userData, onLogout }) {
       const result = await response.json().catch(() => ({}));
  
       if (response.status === 409) {
-        alert('Uma atualização já está a decorrer. Tenta novamente daqui a pouco.');
+        showToast('A refresh is already running. Please try again shortly.', 'warning');
         setIsRefreshing(false);
         return;
       }
       if (!result.success) {
-        alert('Server Error: ' + (result.error || 'unknown'));
+        showToast(`Could not start the update: ${result.error || 'server error'}`, 'error');
         setIsRefreshing(false);
         return;
       }
  
+      showToast('Update started — searching for new incidents in the background. The table refreshes automatically when it finishes.', 'info');
       // Background run started: poll the snapshot until it changes (or time out).
       const startedAt = Date.now();
       const MAX_MS = 5 * 60 * 1000; // drop the spinner after 5 minutes
@@ -159,6 +180,7 @@ export default function Dashboard({ userData, onLogout }) {
           if (txt !== before) {
             setAllRows(sortByDateDesc(transformFireData(JSON.parse(txt))));
             setPage(1);
+            showToast('Incidents updated.', 'success');
             setIsRefreshing(false);
             return;
           }
@@ -166,6 +188,7 @@ export default function Dashboard({ userData, onLogout }) {
           // ignore transient errors while the snapshot is being rewritten
         }
         if (Date.now() - startedAt > MAX_MS) {
+          showToast('The update is taking longer than expected; the data will appear as soon as the process finishes.', 'warning', 10000);
           setIsRefreshing(false);
           return;
         }
@@ -174,7 +197,7 @@ export default function Dashboard({ userData, onLogout }) {
       setTimeout(poll, 15000);
     } catch (error) {
       console.error(error);
-      alert('Error connecting to server.');
+      showToast('Error connecting to the server.', 'error');
       setIsRefreshing(false);
     }
   };
@@ -223,6 +246,14 @@ export default function Dashboard({ userData, onLogout }) {
  
   return (
     <div className="dashboard-container">
+      {toast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[1100] w-[min(92vw,440px)]" role="status" aria-live="polite">
+          <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 text-sm shadow-lg ${toastVariant(toast.variant)}`}>
+            <span className="flex-1">{toast.text}</span>
+            <button type="button" onClick={() => setToast(null)} className="ml-2 text-lg leading-none opacity-60 hover:opacity-100" aria-label="Dismiss">×</button>
+          </div>
+        </div>
+      )}
       {/* Header area: brand + profile button */}
       <header className="dashboard-header">
         {/* Centered logo */}

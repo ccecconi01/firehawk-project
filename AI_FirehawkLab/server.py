@@ -1,3 +1,4 @@
+# Flask app: serves the built SPA and fires.json, and runs the pipeline on an APScheduler cron and via POST /api/refresh-data.
 from flask import Flask, jsonify, send_from_directory, abort
 from flask_cors import CORS
 import atexit

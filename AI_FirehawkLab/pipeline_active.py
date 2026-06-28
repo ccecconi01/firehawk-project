@@ -1,3 +1,4 @@
+# Live inference pipeline: pull recent incidents (fogos.pt) + weather (Open-Meteo), build features, predict response tier + aerial activation, and write fires.json.
 import requests
 import pandas as pd
 import joblib

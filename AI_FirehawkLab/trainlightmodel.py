@@ -1,3 +1,4 @@
+# Phase-2 training (random split): KMeans tiers + RF tier classifier + two-stage aerial; writes the model_*.pkl artifacts.
 import pandas as pd
 import numpy as np
 import matplotlib

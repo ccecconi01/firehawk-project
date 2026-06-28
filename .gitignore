@@ -42,3 +42,8 @@ __pycache__/
 *.njsproj
 *.sln
 *.sw?
+# Claude working notes
+CLAUDE.md
+CLAUDE_CODE_CONTEXT.md
+RewritingGuide.md
+scratch_perplexity_sota.md
